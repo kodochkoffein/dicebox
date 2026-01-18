@@ -75,7 +75,7 @@ class DiceBoxApp {
 
       // Show error state in UI
       if (this.roomJoin) {
-        this.roomJoin.setDisconnected(true);
+        this.roomJoin.setDisconnected();
       }
     }
   }
@@ -98,7 +98,12 @@ class DiceBoxApp {
   setupEventListeners() {
     // Room join UI events
     document.addEventListener('join-room', (e) => {
-      this.joinOrCreateRoom(e.detail.roomId, e.detail.username);
+      const { roomId, username, isHost } = e.detail;
+      if (isHost) {
+        this.createRoom(roomId, username);
+      } else {
+        this.joinRoom(roomId, username);
+      }
     });
 
     document.addEventListener('leave-room', () => {
@@ -150,7 +155,7 @@ class DiceBoxApp {
 
       // If we're in the lobby, show the error
       if (this.roomJoin && this.roomJoin.style.display !== 'none') {
-        this.roomJoin.setDisconnected(true);
+        this.roomJoin.setDisconnected();
       } else {
         // If we're in a room, show a status message
         this.showStatus('Disconnected from server', 'disconnected');
@@ -160,7 +165,7 @@ class DiceBoxApp {
     signalingClient.addEventListener('reconnect-failed', () => {
       console.log('Reconnection failed');
       if (this.roomJoin && this.roomJoin.style.display !== 'none') {
-        this.roomJoin.setDisconnected(true);
+        this.roomJoin.setDisconnected();
       }
     });
 
@@ -238,12 +243,40 @@ class DiceBoxApp {
     });
   }
 
-  // Join or create a room
-  async joinOrCreateRoom(roomId, username) {
+  // Create a new room as host (works offline)
+  createRoom(roomId, username) {
     this.roomId = roomId;
     this.username = username;
+    this.isHost = true;
+    this.hostPeerId = this.peerId;
+    this.myJoinOrder = 0;
 
-    // Query server to see if room exists
+    // Initialize room state
+    this.roomState.clear();
+
+    // Enter the room immediately (offline-capable)
+    this.enterRoom();
+
+    // If server is connected, register as host
+    if (this.serverConnected) {
+      signalingClient.registerHost(roomId);
+    }
+
+    console.log(`Created room ${roomId} as host (server ${this.serverConnected ? 'connected' : 'offline'})`);
+  }
+
+  // Join an existing room (requires server)
+  joinRoom(roomId, username) {
+    if (!this.serverConnected) {
+      this.showStatus('Cannot join room - no server connection', 'disconnected');
+      return;
+    }
+
+    this.roomId = roomId;
+    this.username = username;
+    this.isHost = false;
+
+    // Query server to find the host
     signalingClient.queryRoom(roomId);
   }
 
@@ -253,26 +286,18 @@ class DiceBoxApp {
     if (exists) {
       // Room exists, join as client
       console.log(`Room ${roomId} exists, joining as client. Host: ${hostPeerId}`);
-      this.isHost = false;
       this.hostPeerId = hostPeerId;
       signalingClient.joinRoom(roomId);
     } else {
-      // Room doesn't exist, create as host
-      console.log(`Room ${roomId} doesn't exist, creating as host`);
-      signalingClient.registerHost(roomId);
+      // Room doesn't exist
+      this.showStatus('Room not found', 'disconnected');
+      this.roomId = null;
     }
   }
 
   handleHostRegistered({ roomId }) {
-    console.log(`Registered as host for room ${roomId}`);
-    this.isHost = true;
-    this.hostPeerId = this.peerId;
-    this.myJoinOrder = 0;
-
-    // Initialize room state with self
-    this.roomState.clear();
-
-    this.enterRoom();
+    console.log(`Registered as host for room ${roomId} with server`);
+    // Room was already entered in createRoom(), this just confirms server registration
   }
 
   handleJoinRoomSuccess({ roomId, hostPeerId }) {
@@ -639,7 +664,7 @@ class DiceBoxApp {
     if (this.serverConnected) {
       this.roomJoin.setConnected();
     } else {
-      this.roomJoin.setDisconnected(true);
+      this.roomJoin.setDisconnected();
     }
   }
 }
