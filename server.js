@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const WebSocket = require('ws');
 
 const PORT = process.env.PORT || 3000;
@@ -14,6 +15,17 @@ const MIME_TYPES = {
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
 };
+
+// Rate limiting configuration
+const RATE_LIMIT = {
+  windowMs: 1000,           // 1 second window
+  maxMessages: 50,          // Max messages per window
+  maxConnectionsPerIp: 10,  // Max concurrent connections per IP
+};
+
+// Track connections per IP for rate limiting
+const connectionsByIp = new Map();  // ip -> Set of ws connections
+const messageRates = new Map();     // peerId -> { count, windowStart }
 
 // Simple static file server
 const server = http.createServer((req, res) => {
@@ -40,11 +52,73 @@ const wss = new WebSocket.Server({ server });
 // Minimal room tracking: roomId -> { hostPeerId, hostWs }
 const rooms = new Map();
 
-// Peer connections: peerId -> { ws, roomId }
+// Peer connections: peerId -> { ws, roomId, ip }
 const peers = new Map();
 
+// Generate cryptographically secure peer ID
 function generatePeerId() {
-  return Math.random().toString(36).substring(2, 10);
+  return crypto.randomBytes(16).toString('hex');
+}
+
+// Validate room ID format (alphanumeric, 4-32 chars)
+function isValidRoomId(roomId) {
+  return typeof roomId === 'string' &&
+         roomId.length >= 4 &&
+         roomId.length <= 32 &&
+         /^[a-zA-Z0-9-_]+$/.test(roomId);
+}
+
+// Validate peer ID format (32 hex chars)
+function isValidPeerId(peerId) {
+  return typeof peerId === 'string' &&
+         peerId.length === 32 &&
+         /^[a-f0-9]+$/.test(peerId);
+}
+
+// Check rate limit for a peer
+function checkRateLimit(peerId) {
+  const now = Date.now();
+  let rateData = messageRates.get(peerId);
+
+  if (!rateData || now - rateData.windowStart > RATE_LIMIT.windowMs) {
+    rateData = { count: 0, windowStart: now };
+    messageRates.set(peerId, rateData);
+  }
+
+  rateData.count++;
+  return rateData.count <= RATE_LIMIT.maxMessages;
+}
+
+// Get client IP from request
+function getClientIp(req) {
+  return req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+         req.socket?.remoteAddress ||
+         'unknown';
+}
+
+// Check connection limit per IP
+function checkConnectionLimit(ip) {
+  const connections = connectionsByIp.get(ip);
+  return !connections || connections.size < RATE_LIMIT.maxConnectionsPerIp;
+}
+
+// Track connection for an IP
+function trackConnection(ip, ws) {
+  if (!connectionsByIp.has(ip)) {
+    connectionsByIp.set(ip, new Set());
+  }
+  connectionsByIp.get(ip).add(ws);
+}
+
+// Remove connection tracking for an IP
+function untrackConnection(ip, ws) {
+  const connections = connectionsByIp.get(ip);
+  if (connections) {
+    connections.delete(ws);
+    if (connections.size === 0) {
+      connectionsByIp.delete(ip);
+    }
+  }
 }
 
 function sendTo(ws, message) {
@@ -60,21 +134,47 @@ function sendToPeer(peerId, message) {
   }
 }
 
-wss.on('connection', (ws) => {
-  const peerId = generatePeerId();
-  peers.set(peerId, { ws, roomId: null });
+function sendError(ws, errorType, reason) {
+  sendTo(ws, { type: 'error', errorType, reason });
+}
 
-  console.log(`Peer connected: ${peerId}`);
+wss.on('connection', (ws, req) => {
+  const ip = getClientIp(req);
+
+  // Check connection limit
+  if (!checkConnectionLimit(ip)) {
+    sendTo(ws, { type: 'error', errorType: 'rate-limit', reason: 'Too many connections' });
+    ws.close();
+    return;
+  }
+
+  const peerId = generatePeerId();
+  peers.set(peerId, { ws, roomId: null, ip });
+  trackConnection(ip, ws);
+
+  console.log(`Peer connected: ${peerId.substring(0, 8)}...`);
 
   // Send peer their ID
   sendTo(ws, { type: 'peer-id', peerId });
 
   ws.on('message', (data) => {
+    // Check rate limit
+    if (!checkRateLimit(peerId)) {
+      sendError(ws, 'rate-limit', 'Too many messages');
+      return;
+    }
+
     let message;
     try {
       message = JSON.parse(data);
     } catch (e) {
-      console.error('Invalid JSON:', data);
+      sendError(ws, 'invalid-json', 'Invalid JSON message');
+      return;
+    }
+
+    // Validate message has a type
+    if (!message || typeof message.type !== 'string') {
+      sendError(ws, 'invalid-message', 'Message must have a type');
       return;
     }
 
@@ -84,6 +184,12 @@ wss.on('connection', (ws) => {
       // Room discovery: check if room exists and get host info
       case 'query-room': {
         const { roomId } = message;
+
+        if (!isValidRoomId(roomId)) {
+          sendTo(ws, { type: 'room-info', roomId: null, exists: false, error: 'Invalid room ID' });
+          return;
+        }
+
         const room = rooms.get(roomId);
 
         if (room) {
@@ -107,6 +213,11 @@ wss.on('connection', (ws) => {
       case 'register-host': {
         const { roomId } = message;
 
+        if (!isValidRoomId(roomId)) {
+          sendTo(ws, { type: 'register-host-failed', roomId, reason: 'Invalid room ID format' });
+          return;
+        }
+
         // Check if room already has a host
         if (rooms.has(roomId)) {
           sendTo(ws, { type: 'register-host-failed', roomId, reason: 'Room already has a host' });
@@ -117,13 +228,19 @@ wss.on('connection', (ws) => {
         peer.roomId = roomId;
 
         sendTo(ws, { type: 'register-host-success', roomId });
-        console.log(`Room ${roomId} created with host ${peerId}`);
+        console.log(`Room ${roomId} created with host ${peerId.substring(0, 8)}...`);
         break;
       }
 
       // Claim host role (for migration)
       case 'claim-host': {
         const { roomId } = message;
+
+        if (!isValidRoomId(roomId)) {
+          sendTo(ws, { type: 'claim-host-failed', roomId, reason: 'Invalid room ID format' });
+          return;
+        }
+
         const room = rooms.get(roomId);
 
         // Allow claiming if room doesn't exist or has no active host
@@ -131,7 +248,7 @@ wss.on('connection', (ws) => {
           rooms.set(roomId, { hostPeerId: peerId, hostWs: ws });
           peer.roomId = roomId;
           sendTo(ws, { type: 'claim-host-success', roomId });
-          console.log(`Room ${roomId} host migrated to ${peerId}`);
+          console.log(`Room ${roomId} host migrated to ${peerId.substring(0, 8)}...`);
         } else {
           sendTo(ws, { type: 'claim-host-failed', roomId, reason: 'Room already has active host' });
         }
@@ -141,6 +258,12 @@ wss.on('connection', (ws) => {
       // Join a room (connect to its host)
       case 'join-room': {
         const { roomId } = message;
+
+        if (!isValidRoomId(roomId)) {
+          sendTo(ws, { type: 'join-room-failed', roomId, reason: 'Invalid room ID format' });
+          return;
+        }
+
         const room = rooms.get(roomId);
 
         if (!room) {
@@ -163,7 +286,7 @@ wss.on('connection', (ws) => {
           peerId
         });
 
-        console.log(`Peer ${peerId} joining room ${roomId}`);
+        console.log(`Peer ${peerId.substring(0, 8)}... joining room ${roomId}`);
         break;
       }
 
@@ -172,6 +295,18 @@ wss.on('connection', (ws) => {
       case 'answer':
       case 'ice-candidate': {
         const { targetPeerId } = message;
+
+        if (!isValidPeerId(targetPeerId)) {
+          sendError(ws, 'invalid-peer', 'Invalid target peer ID');
+          return;
+        }
+
+        // Verify target peer exists
+        if (!peers.has(targetPeerId)) {
+          sendError(ws, 'peer-not-found', 'Target peer not found');
+          return;
+        }
+
         sendToPeer(targetPeerId, {
           ...message,
           fromPeerId: peerId
@@ -196,32 +331,48 @@ wss.on('connection', (ws) => {
       }
 
       default:
-        console.log('Unknown message type:', message.type);
+        // Silently ignore unknown message types (don't log to prevent log spam)
+        break;
     }
   });
 
   ws.on('close', () => {
     const peer = peers.get(peerId);
 
-    if (peer && peer.roomId) {
-      const room = rooms.get(peer.roomId);
+    if (peer) {
+      untrackConnection(peer.ip, ws);
 
-      // If this peer was the host, remove the room entry
-      // (clients will handle migration via claim-host)
-      if (room && room.hostPeerId === peerId) {
-        rooms.delete(peer.roomId);
-        console.log(`Room ${peer.roomId} host disconnected, awaiting migration`);
+      if (peer.roomId) {
+        const room = rooms.get(peer.roomId);
+
+        // If this peer was the host, remove the room entry
+        // (clients will handle migration via claim-host)
+        if (room && room.hostPeerId === peerId) {
+          rooms.delete(peer.roomId);
+          console.log(`Room ${peer.roomId} host disconnected, awaiting migration`);
+        }
       }
     }
 
+    messageRates.delete(peerId);
     peers.delete(peerId);
-    console.log(`Peer disconnected: ${peerId}`);
+    console.log(`Peer disconnected: ${peerId.substring(0, 8)}...`);
   });
 
   ws.on('error', (error) => {
-    console.error(`WebSocket error for peer ${peerId}:`, error);
+    console.error(`WebSocket error for peer ${peerId.substring(0, 8)}...:`, error.message);
   });
 });
+
+// Cleanup stale rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [peerId, rateData] of messageRates) {
+    if (now - rateData.windowStart > RATE_LIMIT.windowMs * 10) {
+      messageRates.delete(peerId);
+    }
+  }
+}, 60000);
 
 server.listen(PORT, () => {
   console.log(`DiceBox server running on http://localhost:${PORT}`);

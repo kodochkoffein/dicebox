@@ -47,8 +47,9 @@ export class RoomHost extends EventTarget {
   // Add a dice roll to history
   addRoll(roll) {
     this.rollHistory.unshift(roll);
-    if (this.rollHistory.length > this.maxHistorySize) {
-      this.rollHistory = this.rollHistory.slice(0, this.maxHistorySize);
+    // Use pop() for O(1) removal instead of slice() which creates a new array
+    while (this.rollHistory.length > this.maxHistorySize) {
+      this.rollHistory.pop();
     }
   }
 

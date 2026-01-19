@@ -20,6 +20,14 @@ const MSG = {
   ROLL_DICE: 'roll-dice',       // Peer requests dice roll broadcast
 };
 
+// Host migration configuration
+const MIGRATION_CONFIG = {
+  initialDelay: 500,      // Initial delay before first reconnection attempt
+  maxDelay: 10000,        // Maximum delay between attempts
+  maxAttempts: 5,         // Maximum number of reconnection attempts
+  backoffMultiplier: 2,   // Exponential backoff multiplier
+};
+
 class DiceBoxApp {
   constructor() {
     this.peerId = null;
@@ -36,6 +44,13 @@ class DiceBoxApp {
 
     // Connection state
     this.serverConnected = false;
+
+    // Migration state
+    this.migrationAttempts = 0;
+    this.migrationTimeout = null;
+
+    // Track pending rolls (for duplicate prevention)
+    this.pendingRolls = new Set();
 
     // UI components
     this.roomJoin = document.querySelector('room-join');
@@ -149,7 +164,8 @@ class DiceBoxApp {
       }
     });
 
-    signalingClient.addEventListener('disconnected', () => {
+    signalingClient.addEventListener('disconnected', (e) => {
+      const { wasHost, previousRoomId } = e.detail || {};
       console.log('Disconnected from signaling server');
       this.serverConnected = false;
 
@@ -162,10 +178,33 @@ class DiceBoxApp {
       }
     });
 
+    // Handle reconnection - re-register host if we were hosting
+    signalingClient.addEventListener('reconnected', (e) => {
+      console.log('Reconnected to signaling server with new peer ID:', e.detail.peerId);
+      this.peerId = e.detail.peerId;
+      this.serverConnected = true;
+
+      if (this.roomId && this.isHost) {
+        // Re-register as host after reconnection
+        console.log('Re-registering as host for room:', this.roomId);
+        signalingClient.registerHost(this.roomId);
+      }
+
+      this.showStatus('Reconnected to server', 'connected');
+    });
+
     signalingClient.addEventListener('reconnect-failed', () => {
       console.log('Reconnection failed');
       if (this.roomJoin && this.roomJoin.style.display !== 'none') {
         this.roomJoin.setDisconnected();
+      }
+    });
+
+    // Handle server errors
+    signalingClient.addEventListener('server-error', (e) => {
+      console.error('Server error:', e.detail);
+      if (e.detail.errorType === 'rate-limit') {
+        this.showStatus('Rate limited - slow down', 'disconnected');
       }
     });
 
@@ -206,6 +245,7 @@ class DiceBoxApp {
 
     signalingClient.addEventListener('claim-host-failed', (e) => {
       console.log('Another peer claimed host');
+      this.cancelMigration();
     });
   }
 
@@ -239,6 +279,17 @@ class DiceBoxApp {
       const { peerId, state } = e.detail;
       if (this.peerList) {
         this.peerList.updatePeerStatus(peerId, state === 'connected' ? 'connected' : 'connecting');
+      }
+    });
+
+    // Connection timeout
+    webrtcManager.addEventListener('connection-timeout', (e) => {
+      const { peerId } = e.detail;
+      console.log(`Connection to ${peerId} timed out`);
+
+      if (!this.isHost && peerId === this.hostPeerId) {
+        // Failed to connect to host, handle as host disconnect
+        this.handlePeerDisconnected(peerId);
       }
     });
   }
@@ -351,7 +402,7 @@ class DiceBoxApp {
         break;
 
       case MSG.DICE_ROLL:
-        this.handleDiceRollMsg(message);
+        this.handleDiceRollMsg(fromPeerId, message);
         break;
 
       case MSG.HOST_LEAVING:
@@ -397,7 +448,7 @@ class DiceBoxApp {
     }
   }
 
-  hostHandleRollDice(peerId, { diceType, count, values, total }) {
+  hostHandleRollDice(peerId, { diceType, count, values, total, rollId }) {
     const peer = this.roomState.peers.get(peerId);
     if (!peer) return;
 
@@ -408,6 +459,7 @@ class DiceBoxApp {
       count,
       values,
       total,
+      rollId, // Include rollId for duplicate prevention
       timestamp: Date.now()
     };
 
@@ -439,8 +491,8 @@ class DiceBoxApp {
       }
     }
 
-    // Populate roll history
-    for (const roll of rollHistory.reverse()) {
+    // Populate roll history (reversed to show newest first)
+    for (const roll of rollHistory.slice().reverse()) {
       this.diceHistory.addRoll(roll);
     }
   }
@@ -459,7 +511,14 @@ class DiceBoxApp {
     }
   }
 
-  handleDiceRollMsg({ peerId, username, diceType, count, values, total, timestamp }) {
+  handleDiceRollMsg(fromPeerId, { peerId, username, diceType, count, values, total, rollId, timestamp }) {
+    // If this is our own roll coming back from the host, check for duplicate
+    if (peerId === this.peerId && rollId && this.pendingRolls.has(rollId)) {
+      // This is a confirmation of our roll - remove from pending, don't add again
+      this.pendingRolls.delete(rollId);
+      return;
+    }
+
     if (this.diceHistory) {
       this.diceHistory.addRoll({ peerId, username, diceType, count, values, total });
     }
@@ -482,15 +541,50 @@ class DiceBoxApp {
 
   // === HOST MIGRATION ===
 
+  cancelMigration() {
+    if (this.migrationTimeout) {
+      clearTimeout(this.migrationTimeout);
+      this.migrationTimeout = null;
+    }
+    this.migrationAttempts = 0;
+  }
+
   initiateHostMigration() {
     console.log('Initiating host migration - claiming host role');
+    this.cancelMigration();
+    this.attemptClaimHost();
+  }
 
-    // Try to claim host with the server
-    signalingClient.claimHost(this.roomId);
+  attemptClaimHost() {
+    if (this.migrationAttempts >= MIGRATION_CONFIG.maxAttempts) {
+      console.log('Max migration attempts reached, giving up');
+      this.showStatus('Failed to migrate host', 'disconnected');
+      return;
+    }
+
+    this.migrationAttempts++;
+
+    // Calculate delay with exponential backoff
+    const delay = Math.min(
+      MIGRATION_CONFIG.initialDelay * Math.pow(MIGRATION_CONFIG.backoffMultiplier, this.migrationAttempts - 1),
+      MIGRATION_CONFIG.maxDelay
+    );
+
+    console.log(`Migration attempt ${this.migrationAttempts}/${MIGRATION_CONFIG.maxAttempts} in ${delay}ms`);
+
+    this.migrationTimeout = setTimeout(() => {
+      if (this.serverConnected) {
+        signalingClient.claimHost(this.roomId);
+      } else {
+        // No server connection, retry after delay
+        this.attemptClaimHost();
+      }
+    }, delay);
   }
 
   handleBecameHost({ roomId }) {
     console.log('Successfully became new host');
+    this.cancelMigration();
     this.isHost = true;
     this.hostPeerId = this.peerId;
 
@@ -544,18 +638,36 @@ class DiceBoxApp {
         // We should be the new host
         this.initiateHostMigration();
       } else {
-        // Wait for new host to establish
+        // Someone else will be host, update our reference
         this.hostPeerId = nextHost.peerId;
         console.log(`Expecting ${nextHost.peerId} to become new host`);
 
-        // Try to connect to new host
-        setTimeout(() => {
-          if (!this.isHost && this.hostPeerId === nextHost.peerId) {
-            webrtcManager.connectToPeer(nextHost.peerId);
-          }
-        }, 1000);
+        // Try to connect to new host with exponential backoff
+        this.attemptConnectToNewHost(nextHost.peerId, 0);
       }
     }
+  }
+
+  attemptConnectToNewHost(peerId, attempt) {
+    if (attempt >= MIGRATION_CONFIG.maxAttempts) {
+      console.log('Failed to connect to new host after max attempts');
+      this.showStatus('Lost connection to room', 'disconnected');
+      return;
+    }
+
+    const delay = Math.min(
+      MIGRATION_CONFIG.initialDelay * Math.pow(MIGRATION_CONFIG.backoffMultiplier, attempt),
+      MIGRATION_CONFIG.maxDelay
+    );
+
+    setTimeout(() => {
+      if (!this.isHost && this.hostPeerId === peerId) {
+        console.log(`Attempting to connect to new host ${peerId} (attempt ${attempt + 1})`);
+        webrtcManager.connectToPeer(peerId).catch(() => {
+          this.attemptConnectToNewHost(peerId, attempt + 1);
+        });
+      }
+    }, delay);
   }
 
   // === ROOM UI ===
@@ -582,6 +694,9 @@ class DiceBoxApp {
   // === DICE ROLLING ===
 
   handleLocalDiceRoll({ diceType, count, values, total }) {
+    // Generate a unique roll ID for duplicate prevention
+    const rollId = `${this.peerId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
     const roll = {
       peerId: this.peerId,
       username: this.username,
@@ -589,6 +704,7 @@ class DiceBoxApp {
       count,
       values,
       total,
+      rollId,
       timestamp: Date.now()
     };
 
@@ -602,19 +718,28 @@ class DiceBoxApp {
         this.diceHistory.addRoll(roll);
       }
     } else {
-      // Client: send to host for broadcast
+      // Client: track this roll as pending to prevent duplicate display
+      this.pendingRolls.add(rollId);
+
+      // Send to host for broadcast
       this.sendToHost({
         type: MSG.ROLL_DICE,
         diceType,
         count,
         values,
-        total
+        total,
+        rollId
       });
 
       // Optimistically add to local UI
       if (this.diceHistory) {
         this.diceHistory.addRoll(roll);
       }
+
+      // Clean up pending roll after timeout (in case host never confirms)
+      setTimeout(() => {
+        this.pendingRolls.delete(rollId);
+      }, 10000);
     }
   }
 
@@ -627,6 +752,8 @@ class DiceBoxApp {
   // === LEAVE ROOM ===
 
   leaveRoom() {
+    this.cancelMigration();
+
     if (this.isHost) {
       // Host: notify peers and handoff
       const nextHost = this.roomState.getNextHostCandidate();
@@ -651,6 +778,7 @@ class DiceBoxApp {
     this.isHost = false;
     this.hostPeerId = null;
     this.roomState.clear();
+    this.pendingRolls.clear();
 
     // Clear and reset components
     if (this.peerList) this.peerList.clear();
