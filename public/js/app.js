@@ -822,22 +822,14 @@ class DiceBoxApp {
   // === DICE ROLLING ===
 
   handleLocalDiceGrab() {
-    console.log('handleLocalDiceGrab called', {
-      holderPeerId: this.holderPeerId,
-      isHost: this.isHost,
-      peerId: this.peerId
-    });
-
     // User clicked to grab the dice
     if (this.holderPeerId !== null) {
-      // Someone is already holding - ignore (or this could be the holder clicking to roll)
-      console.log('Someone already holding, ignoring grab');
+      // Someone is already holding - ignore
       return;
     }
 
     if (this.isHost) {
       // Host grabs immediately
-      console.log('Host grabbing dice');
       this.roomState.setHolder(this.peerId, this.username);
       this.holderPeerId = this.peerId;
       this.holderUsername = this.username;
@@ -849,11 +841,9 @@ class DiceBoxApp {
         holderUsername: this.username
       });
 
-      console.log('Calling updateDiceRollerState');
       this.updateDiceRollerState();
     } else {
       // Client: send grab request to host
-      console.log('Client sending grab request to host');
       this.sendToHost({ type: MSG.GRAB_DICE });
     }
   }
@@ -1018,7 +1008,5 @@ class DiceBoxApp {
   }
 }
 
-// Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  window.diceBoxApp = new DiceBoxApp();
-});
+// Initialize app - modules are deferred so DOM is already ready
+window.diceBoxApp = new DiceBoxApp();

@@ -210,25 +210,16 @@ class DiceRoller extends HTMLElement {
 
     if (this.isRolling) return;
 
-    console.log('handleClick called', {
-      holderPeerId: this.holderPeerId,
-      myPeerId: this.myPeerId,
-      isHost: this.isHost
-    });
-
     const iAmHolder = this.myPeerId && this.holderPeerId === this.myPeerId;
 
     if (this.holderPeerId === null) {
       // No one holding - grab the dice
-      console.log('Dispatching dice-grabbed event');
       this.dispatchEvent(new CustomEvent('dice-grabbed', { bubbles: true }));
     } else if (iAmHolder) {
       // I'm holding - roll!
-      console.log('I am holder, rolling');
       this.roll();
-    } else {
-      console.log('Someone else is holding, ignoring click');
     }
+    // If someone else is holding, ignore clicks
   }
 
   async roll() {
@@ -312,8 +303,6 @@ class DiceRoller extends HTMLElement {
 
   // Called by app.js to update state
   setConfig({ diceCount, holderPeerId, holderUsername, myPeerId, isHost }) {
-    console.log('setConfig called', { diceCount, holderPeerId, holderUsername, myPeerId, isHost });
-
     this.diceCount = diceCount;
     this.holderPeerId = holderPeerId;
     this.holderUsername = holderUsername;
