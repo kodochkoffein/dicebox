@@ -581,7 +581,10 @@ dice-history .history-list {
 }
 
 dice-history .history-item {
-  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
   border-bottom: 1px solid var(--surface-light);
   animation: slideIn 0.3s ease;
 }
@@ -604,26 +607,33 @@ dice-history .history-item:last-child {
 dice-history .history-item .username {
   font-weight: 600;
   color: var(--primary-color);
+  white-space: nowrap;
 }
 
 dice-history .history-item .username.self {
   color: var(--secondary-color);
 }
 
-dice-history .history-item .roll-info {
-  color: var(--text-muted);
-  font-size: 0.9rem;
+dice-history .history-dice {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
-dice-history .history-item .roll-result {
-  font-size: 1.2rem;
-  font-weight: bold;
-  margin-top: 4px;
+dice-history .history-die {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, #ffffff, #e2e8f0);
+  border-radius: 4px;
+  padding: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  display: inline-flex;
 }
 
-dice-history .history-item .roll-values {
-  color: var(--text-muted);
-  font-size: 0.85rem;
+dice-history .history-die svg {
+  width: 100%;
+  height: 100%;
 }
 
 dice-history .empty-message {
