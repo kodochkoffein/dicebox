@@ -464,25 +464,25 @@ dice-config .config-value {
   text-align: center;
 }
 
-/* Dice display wrapper - clickable area */
-dice-roller .dice-display-wrapper {
+/* Dice area - clickable */
+dice-roller .dice-area {
   cursor: pointer;
-  padding: 20px;
-  margin: -20px;
-  margin-bottom: 4px;
-  border-radius: var(--border-radius);
   transition: background-color 0.2s ease;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-dice-roller .dice-display-wrapper:hover {
+dice-roller .dice-area:hover {
   background: rgba(99, 102, 241, 0.1);
 }
 
-dice-roller .dice-display-wrapper.holding {
+dice-roller .dice-area.holding {
   background: rgba(245, 158, 11, 0.1);
 }
 
-dice-roller .dice-display-wrapper.holding:hover {
+dice-roller .dice-area.holding:hover {
   background: rgba(245, 158, 11, 0.2);
 }
 
@@ -549,21 +549,6 @@ dice-roller .drop-btn {
 
 dice-roller .drop-btn:hover {
   background: #dc2626;
-}
-
-/* Dice hint text */
-dice-roller .dice-hint {
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  margin-top: 12px;
-}
-
-dice-roller .roll-total {
-  font-size: 1.5rem;
-  color: var(--secondary-color);
-  margin-top: 16px;
-  text-align: center;
 }
 
 /* Dice History Component */

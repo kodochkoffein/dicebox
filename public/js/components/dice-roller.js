@@ -65,17 +65,13 @@ class DiceRoller extends HTMLElement {
     const canDrop = this.isHost && isHolding && !iAmHolder;
 
     this.innerHTML = `
-      <div class="card dice-area">
-        <div class="dice-display-wrapper ${isHolding ? 'holding' : ''}">
-          ${this.renderContent(isHolding, iAmHolder, canDrop)}
-        </div>
-        <div class="roll-total"></div>
-        <div class="dice-hint">${this.getHint(isHolding, iAmHolder)}</div>
+      <div class="card dice-area ${isHolding ? 'holding' : ''}">
+        ${this.renderContent(isHolding, iAmHolder, canDrop)}
       </div>
     `;
 
-    // Attach click handler to the wrapper
-    this.querySelector('.dice-display-wrapper').onclick = (e) => {
+    // Attach click handler to the dice area
+    this.querySelector('.dice-area').onclick = (e) => {
       if (e.target.closest('.drop-btn')) {
         this.dispatchEvent(new CustomEvent('dice-dropped', { bubbles: true }));
       } else {
@@ -115,13 +111,6 @@ class DiceRoller extends HTMLElement {
     `;
   }
 
-  getHint(isHolding, iAmHolder) {
-    if (isHolding) {
-      return iAmHolder ? 'Click to roll the dice' : `Waiting for ${this.holderUsername} to roll...`;
-    }
-    return 'Click to grab the dice';
-  }
-
   handleClick() {
     if (this.isRolling) return;
 
@@ -141,15 +130,12 @@ class DiceRoller extends HTMLElement {
     this.isRolling = true;
 
     const display = this.querySelector('.dice-display');
-    const hint = this.querySelector('.dice-hint');
-    const total = this.querySelector('.roll-total');
 
     // Rolling animation
     display.classList.remove('holding-state');
     display.innerHTML = Array(this.diceCount).fill(0).map(() =>
       `<div class="die rolling">${this.getDiceSvg(1)}</div>`
     ).join('');
-    hint.textContent = 'Rolling...';
 
     // Animate for 500ms
     const animate = () => {
@@ -171,8 +157,6 @@ class DiceRoller extends HTMLElement {
     display.innerHTML = this.currentValues.map(v =>
       `<div class="die">${this.getDiceSvg(v)}</div>`
     ).join('');
-    total.textContent = this.diceCount > 1 ? `Total: ${sum}` : '';
-    hint.textContent = 'Click to grab the dice';
 
     this.isRolling = false;
 
@@ -196,12 +180,10 @@ class DiceRoller extends HTMLElement {
   showRoll(values) {
     this.currentValues = values;
     const display = this.querySelector('.dice-display');
-    const total = this.querySelector('.roll-total');
     if (!display) return;
 
     display.classList.remove('holding-state');
     display.innerHTML = values.map(v => `<div class="die">${this.getDiceSvg(v)}</div>`).join('');
-    total.textContent = values.length > 1 ? `Total: ${values.reduce((a, b) => a + b, 0)}` : '';
   }
 }
 
