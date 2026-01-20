@@ -21,13 +21,11 @@ class RoomView extends HTMLElement {
         <button class="btn-leave" id="btn-leave">Leave Room</button>
       </div>
       <div class="room-content">
+        <peer-list></peer-list>
         <div class="main-area">
           <dice-config id="dice-config" style="display: none;"></dice-config>
           <dice-roller></dice-roller>
           <dice-history></dice-history>
-        </div>
-        <div class="sidebar">
-          <peer-list></peer-list>
         </div>
       </div>
     `;
