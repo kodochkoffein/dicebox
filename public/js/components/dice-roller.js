@@ -210,14 +210,26 @@ class DiceRoller extends HTMLElement {
     if (this.isRolling) return;
     this.isRolling = true;
 
-    // Animate all dice sets
-    const displays = this.querySelectorAll('.dice-display');
-    displays.forEach((display, index) => {
-      const set = this.diceSets[index];
-      const pipColor = this.getPipColor(set.color);
-      display.innerHTML = Array(set.count).fill(0).map(() =>
-        `<div class="die rolling" data-pip-color="${pipColor}">${this.getDiceSvg(1, pipColor)}</div>`
-      ).join('');
+    // First, render dice sets with rolling animation (replace roll-ready-display with dice)
+    this.diceSets.forEach(set => {
+      const setEl = this.querySelector(`.dice-set[data-set-id="${set.id}"]`);
+      if (setEl) {
+        const pipColor = this.getPipColor(set.color);
+        const bgColor = this.hexToRgba(set.color, 0.15);
+
+        // Replace content with rolling dice
+        setEl.className = 'dice-set card held rolling-set';
+        setEl.style.setProperty('--set-color', set.color);
+        setEl.style.setProperty('--set-bg', bgColor);
+        setEl.style.borderColor = set.color;
+        setEl.innerHTML = `
+          <div class="dice-display">
+            ${Array(set.count).fill(0).map(() =>
+              `<div class="die rolling" data-pip-color="${pipColor}">${this.getDiceSvg(1, pipColor)}</div>`
+            ).join('')}
+          </div>
+        `;
+      }
     });
 
     // Animate for 500ms
@@ -245,13 +257,18 @@ class DiceRoller extends HTMLElement {
     });
 
     // Show results
-    displays.forEach((display, index) => {
-      const set = this.diceSets[index];
-      const pipColor = this.getPipColor(set.color);
-      const values = rollResults[set.id];
-      display.innerHTML = values.map(v =>
-        `<div class="die">${this.getDiceSvg(v, pipColor)}</div>`
-      ).join('');
+    this.diceSets.forEach(set => {
+      const setEl = this.querySelector(`.dice-set[data-set-id="${set.id}"]`);
+      if (setEl) {
+        const display = setEl.querySelector('.dice-display');
+        if (display) {
+          const pipColor = this.getPipColor(set.color);
+          const values = rollResults[set.id];
+          display.innerHTML = values.map(v =>
+            `<div class="die">${this.getDiceSvg(v, pipColor)}</div>`
+          ).join('');
+        }
+      }
     });
 
     this.isRolling = false;
@@ -290,17 +307,27 @@ class DiceRoller extends HTMLElement {
     this.currentValues = rollResults;
     this.diceSets.forEach(set => {
       const values = rollResults[set.id] || [];
+      if (values.length === 0) return;
+
       const setEl = this.querySelector(`.dice-set[data-set-id="${set.id}"]`);
       if (setEl) {
-        const display = setEl.querySelector('.dice-display');
-        if (display && values.length > 0) {
-          const pipColor = this.getPipColor(set.color);
-          display.innerHTML = values.map(v =>
-            `<div class="die">${this.getDiceSvg(v, pipColor)}</div>`
-          ).join('');
-        }
+        const pipColor = this.getPipColor(set.color);
+        const bgColor = this.hexToRgba(set.color, 0.15);
+
+        // Update the set element to show dice results
+        setEl.className = 'dice-set card';
+        setEl.style.setProperty('--set-color', set.color);
+        setEl.style.setProperty('--set-bg', bgColor);
+        setEl.style.borderColor = 'transparent';
+        setEl.innerHTML = `
+          <div class="dice-display">
+            ${values.map(v => `<div class="die">${this.getDiceSvg(v, pipColor)}</div>`).join('')}
+          </div>
+          <div class="grab-hint">Click to grab</div>
+        `;
       }
     });
+    this.attachEventListeners();
   }
 }
 
