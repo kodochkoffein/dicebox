@@ -7,7 +7,8 @@ class PeerList extends HTMLElement {
     this.peers = new Map();
     this.selfPeerId = null;
     this.selfUsername = null;
-    this.holderPeerId = null;
+    // Set of peer IDs that are holding dice
+    this.holderPeerIds = new Set();
   }
 
   connectedCallback() {
@@ -38,8 +39,8 @@ class PeerList extends HTMLElement {
     this.renderPeers();
   }
 
-  setHolder(peerId) {
-    this.holderPeerId = peerId;
+  setHolders(holderPeerIds) {
+    this.holderPeerIds = new Set(holderPeerIds);
     this.renderPeers();
   }
 
@@ -66,7 +67,7 @@ class PeerList extends HTMLElement {
         username: this.selfUsername,
         status: 'connected',
         isSelf: true,
-        isHolder: this.holderPeerId === this.selfPeerId
+        isHolder: this.holderPeerIds.has(this.selfPeerId)
       });
     }
 
@@ -77,7 +78,7 @@ class PeerList extends HTMLElement {
         username,
         status,
         isSelf: false,
-        isHolder: this.holderPeerId === peerId
+        isHolder: this.holderPeerIds.has(peerId)
       });
     }
 
@@ -86,13 +87,23 @@ class PeerList extends HTMLElement {
       return;
     }
 
-    content.innerHTML = allPeers.map(({ username, status, isSelf, isHolder }) => `
-      <div class="peer-item ${isHolder ? 'holding' : ''}">
+    content.innerHTML = allPeers.map(({ peerId, username, status, isSelf, isHolder }) => `
+      <div class="peer-item ${isHolder ? 'holding' : ''} ${isSelf && isHolder ? 'can-drop' : ''}"
+           data-peer-id="${peerId}"
+           data-is-self="${isSelf}"
+           data-is-holder="${isHolder}">
         <div class="peer-avatar ${isSelf ? 'self' : ''}">${this.getInitials(username)}</div>
         <div class="peer-name ${isSelf ? 'self' : ''}">${this.escapeHtml(username)}${isHolder ? ' &#127922;' : ''}</div>
         <div class="peer-status ${status === 'connecting' ? 'connecting' : ''}"></div>
       </div>
     `).join('');
+
+    // Add click handlers for self holding dice
+    content.querySelectorAll('.peer-item.can-drop').forEach(item => {
+      item.addEventListener('click', () => {
+        this.dispatchEvent(new CustomEvent('dice-dropped', { bubbles: true }));
+      });
+    });
   }
 
   getInitials(name) {
@@ -113,7 +124,7 @@ class PeerList extends HTMLElement {
     this.peers.clear();
     this.selfPeerId = null;
     this.selfUsername = null;
-    this.holderPeerId = null;
+    this.holderPeerIds.clear();
     this.renderPeers();
   }
 }

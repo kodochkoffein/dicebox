@@ -447,6 +447,12 @@ class DiceBoxApp {
         }
         break;
 
+      case MSG.DROP_DICE:
+        if (this.isHost) {
+          this.hostHandleDropDice(fromPeerId);
+        }
+        break;
+
       // === Messages FROM HOST ===
       case MSG.WELCOME:
         if (!this.isHost) {
@@ -585,6 +591,27 @@ class DiceBoxApp {
       holderPeerId: peerId,
       holderUsername: peer.username
     });
+
+    this.updateDiceRollerState();
+  }
+
+  hostHandleDropDice(peerId) {
+    // Find all sets held by this peer and release them
+    const setsHeld = this.roomState.getSetsHeldByPeer(peerId);
+    if (setsHeld.length === 0) return;
+
+    for (const setId of setsHeld) {
+      this.roomState.clearHolder(setId);
+      this.holders.delete(setId);
+
+      // Broadcast that this set is no longer held
+      this.roomState.broadcast({
+        type: MSG.DICE_HELD,
+        setId,
+        holderPeerId: null,
+        holderUsername: null
+      });
+    }
 
     this.updateDiceRollerState();
   }
@@ -960,22 +987,46 @@ class DiceBoxApp {
   }
 
   handleLocalDiceDrop() {
-    if (!this.isHost) return; // Only host can force drop
-    if (this.holders.size === 0) return; // No one is holding
+    const myId = this.getEffectiveId();
 
-    // Clear all holders
-    this.roomState.clearAllHolders();
-    this.holders.clear();
+    // Check if we're holding any dice
+    let iAmHolding = false;
+    for (const holder of this.holders.values()) {
+      if (holder.peerId === myId) {
+        iAmHolding = true;
+        break;
+      }
+    }
 
-    // Broadcast that no one is holding anymore
-    this.roomState.broadcast({
-      type: MSG.DICE_HELD,
-      setId: null,
-      holderPeerId: null,
-      holderUsername: null
-    });
+    if (!iAmHolding) return;
 
-    this.updateDiceRollerState();
+    if (this.isHost) {
+      // Host: clear own dice sets
+      const setsToRelease = [];
+      for (const [setId, holder] of this.holders) {
+        if (holder.peerId === myId) {
+          setsToRelease.push(setId);
+        }
+      }
+
+      for (const setId of setsToRelease) {
+        this.roomState.clearHolder(setId);
+        this.holders.delete(setId);
+
+        // Broadcast that this set is no longer held
+        this.roomState.broadcast({
+          type: MSG.DICE_HELD,
+          setId,
+          holderPeerId: null,
+          holderUsername: null
+        });
+      }
+
+      this.updateDiceRollerState();
+    } else {
+      // Non-host: send drop request to host
+      this.sendToHost({ type: MSG.DROP_DICE });
+    }
   }
 
   updateDiceRollerState() {
@@ -988,10 +1039,13 @@ class DiceBoxApp {
       isHost: this.isHost
     });
 
-    // Update peer list to show who's holding (show first holder for now)
+    // Update peer list to show who's holding
     if (this.peerList) {
-      const firstHolder = this.holders.size > 0 ? this.holders.values().next().value : null;
-      this.peerList.setHolder(firstHolder?.peerId || null);
+      const holderPeerIds = new Set();
+      for (const holder of this.holders.values()) {
+        holderPeerIds.add(holder.peerId);
+      }
+      this.peerList.setHolders(holderPeerIds);
     }
   }
 
