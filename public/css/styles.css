@@ -597,31 +597,28 @@ dice-roller .grab-hint {
   margin-top: 8px;
 }
 
-dice-roller .roll-prompt {
-  text-align: center;
+dice-roller .roll-ready-display {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 70px;
 }
 
-dice-roller .roll-hint {
+dice-roller .roll-ready-hint {
   font-size: 1rem;
   color: var(--secondary-color);
   font-weight: 600;
   animation: fadeInOut 2s ease-in-out infinite;
 }
 
-dice-roller .roll-hint.waiting {
+dice-roller .roll-ready-hint.waiting {
   color: var(--text-muted);
+  font-size: 0.9rem;
+  animation: none;
 }
 
-dice-roller .drop-all-btn {
-  align-self: center;
-  padding: 8px 16px;
-  font-size: 0.85rem;
-  background: var(--danger);
-  border-radius: 6px;
-}
-
-dice-roller .drop-all-btn:hover {
-  background: #dc2626;
+dice-roller .dice-set.other-hold {
+  opacity: 0.7;
 }
 
 /* Dice Config Component (host only) */
@@ -919,6 +916,14 @@ peer-list .peer-item {
 
 peer-list .peer-item.holding {
   border-color: var(--warning);
+}
+
+peer-list .peer-item.can-drop {
+  cursor: pointer;
+}
+
+peer-list .peer-item.can-drop:hover {
+  background: var(--surface);
 }
 
 peer-list .peer-avatar {

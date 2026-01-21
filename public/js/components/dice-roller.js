@@ -75,21 +75,12 @@ class DiceRoller extends HTMLElement {
 
   render() {
     const allHeld = this.allSetsHeld();
-    const canRoll = allHeld && this.iAmHoldingAny();
-    const canDrop = this.isHost && this.holders.size > 0;
 
     this.innerHTML = `
       <div class="dice-roller-container">
         <div class="dice-sets-area ${allHeld ? 'all-held' : ''}">
           ${this.diceSets.map(set => this.renderDiceSet(set)).join('')}
         </div>
-        ${allHeld ? `
-          <div class="roll-prompt">
-            ${canRoll ? '<div class="roll-hint">All dice held! Click to roll or press R</div>' :
-                       '<div class="roll-hint waiting">Waiting for roll...</div>'}
-          </div>
-        ` : ''}
-        ${canDrop ? '<button class="drop-all-btn">Drop All</button>' : ''}
       </div>
     `;
 
@@ -102,11 +93,43 @@ class DiceRoller extends HTMLElement {
     const iAmHolder = isHeld && holder.peerId === this.myPeerId;
     const values = this.currentValues[set.id] || [];
     const hasValues = values.length > 0;
+    const allHeld = this.allSetsHeld();
+    const canRoll = allHeld && this.iAmHoldingAny();
 
     // Generate a slightly lighter color for the background
     const bgColor = this.hexToRgba(set.color, 0.15);
     const borderColor = isHeld ? set.color : 'transparent';
     const pipColor = this.getPipColor(set.color);
+
+    // When all dice are held, show different UI based on who's holding
+    if (allHeld) {
+      if (iAmHolder) {
+        // I'm holding this set - show "Click to roll"
+        return `
+          <div class="dice-set card held ready-to-roll my-hold"
+               data-set-id="${set.id}"
+               style="--set-color: ${set.color}; --set-bg: ${bgColor}; border-color: ${borderColor}">
+            <div class="holder-info">
+              <span class="holder-name">You</span>
+            </div>
+            <div class="roll-ready-display">
+              <div class="roll-ready-hint">Click to roll</div>
+            </div>
+          </div>
+        `;
+      } else {
+        // Someone else is holding this set - show "... is about to roll"
+        return `
+          <div class="dice-set card held ready-to-roll other-hold"
+               data-set-id="${set.id}"
+               style="--set-color: ${set.color}; --set-bg: ${bgColor}; border-color: ${borderColor}">
+            <div class="roll-ready-display">
+              <div class="roll-ready-hint waiting">${holder.username} is about to roll</div>
+            </div>
+          </div>
+        `;
+      }
+    }
 
     return `
       <div class="dice-set card ${isHeld ? 'held' : ''} ${iAmHolder ? 'my-hold' : ''}"
@@ -140,26 +163,11 @@ class DiceRoller extends HTMLElement {
   attachEventListeners() {
     // Handle dice set clicks
     this.querySelectorAll('.dice-set').forEach(setEl => {
-      setEl.addEventListener('click', (e) => {
-        if (e.target.closest('.drop-all-btn')) return;
+      setEl.addEventListener('click', () => {
         const setId = setEl.dataset.setId;
         this.handleSetClick(setId);
       });
     });
-
-    // Handle drop all button
-    this.querySelector('.drop-all-btn')?.addEventListener('click', () => {
-      this.dispatchEvent(new CustomEvent('dice-dropped', { bubbles: true }));
-    });
-
-    // Handle roll area click when all sets held
-    if (this.allSetsHeld() && this.iAmHoldingAny()) {
-      this.querySelector('.dice-sets-area')?.addEventListener('click', (e) => {
-        if (!e.target.closest('.dice-set')) {
-          this.roll();
-        }
-      });
-    }
   }
 
   handleSetClick(setId) {
