@@ -3,11 +3,27 @@
  */
 import { getDiceSvg } from '../utils/dice-utils.js';
 
+// Predefined color palette (same as dice-config.js)
+const DICE_COLORS = [
+  { name: 'White', hex: '#ffffff' },
+  { name: 'Purple', hex: '#6366f1' },
+  { name: 'Green', hex: '#10b981' },
+  { name: 'Orange', hex: '#f59e0b' },
+  { name: 'Red', hex: '#ef4444' },
+  { name: 'Blue', hex: '#3b82f6' },
+  { name: 'Pink', hex: '#ec4899' },
+  { name: 'Cyan', hex: '#06b6d4' },
+  { name: 'Yellow', hex: '#eab308' }
+];
+
 class RoomJoin extends HTMLElement {
   constructor() {
     super();
     this._serverConnected = false;
     this._diceValues = [0, 0, 0, 0]; // 4 dice, values 0-5 (representing 1-6)
+    this._createMode = false;
+    this._diceSets = [{ id: 'set-1', count: 2, color: '#ffffff' }];
+    this._nextSetId = 2;
   }
 
   // Render a die face - converts internal 0-5 value to 1-6 for display
@@ -36,6 +52,11 @@ class RoomJoin extends HTMLElement {
             <div class="room-dice" id="room-dice-3" data-index="3"></div>
           </div>
         </div>
+        <div class="form-group dice-config-group" id="dice-config-group" style="display: none;">
+          <label>Dice Sets</label>
+          <div class="dice-sets-config" id="dice-sets-config"></div>
+          <button class="add-set-btn" id="add-set-btn">+ Add Set</button>
+        </div>
         <div class="join-buttons">
           <button class="btn-create" id="btn-create">Create Room</button>
           <button class="btn-join" id="btn-join">Join Room</button>
@@ -43,11 +64,52 @@ class RoomJoin extends HTMLElement {
       </div>
     `;
     this._joinMode = false;
+    this._createMode = false;
 
     // Initialize dice with SVGs
     for (let i = 0; i < 4; i++) {
       const die = this.querySelector(`#room-dice-${i}`);
       if (die) die.innerHTML = this.renderDie(this._diceValues[i]);
+    }
+
+    // Render dice sets config
+    this.renderDiceSetsConfig();
+  }
+
+  renderDiceSetsConfig() {
+    const container = this.querySelector('#dice-sets-config');
+    if (!container) return;
+
+    container.innerHTML = this._diceSets.map((set, index) => `
+      <div class="dice-set-row" data-set-id="${set.id}">
+        <div class="color-picker">
+          <button class="color-btn" style="background: ${set.color}" data-action="color" data-set-id="${set.id}">
+            <span class="color-dropdown-arrow"></span>
+          </button>
+          <div class="color-dropdown" data-set-id="${set.id}">
+            ${DICE_COLORS.map(c => `
+              <button class="color-option ${c.hex === set.color ? 'selected' : ''}"
+                      data-color="${c.hex}"
+                      style="background: ${c.hex}"
+                      title="${c.name}"></button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="count-controls">
+          <button class="config-btn" data-action="decrease" data-set-id="${set.id}">-</button>
+          <span class="config-value">${set.count}</span>
+          <button class="config-btn" data-action="increase" data-set-id="${set.id}">+</button>
+        </div>
+        ${this._diceSets.length > 1 ? `
+          <button class="remove-set-btn" data-action="remove" data-set-id="${set.id}">×</button>
+        ` : ''}
+      </div>
+    `).join('');
+
+    // Update add button state
+    const addBtn = this.querySelector('#add-set-btn');
+    if (addBtn) {
+      addBtn.disabled = this._diceSets.length >= 4;
     }
   }
 
@@ -71,6 +133,9 @@ class RoomJoin extends HTMLElement {
       die.addEventListener('click', (e) => this.handleDiceClick(e, i));
     }
 
+    // Dice config event listeners
+    this.setupDiceConfigListeners();
+
     // Enter key support
     usernameInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
@@ -80,6 +145,123 @@ class RoomJoin extends HTMLElement {
 
     // Focus username on load
     usernameInput.focus();
+  }
+
+  setupDiceConfigListeners() {
+    const addSetBtn = this.querySelector('#add-set-btn');
+    if (addSetBtn) {
+      addSetBtn.addEventListener('click', () => this.addDiceSet());
+    }
+
+    // Delegate clicks for dice config controls
+    const configGroup = this.querySelector('#dice-config-group');
+    if (configGroup) {
+      configGroup.addEventListener('click', (e) => {
+        // Handle color option selection
+        const colorOption = e.target.closest('.color-option');
+        if (colorOption) {
+          e.stopPropagation();
+          const color = colorOption.dataset.color;
+          const dropdown = colorOption.closest('.color-dropdown');
+          const setId = dropdown.dataset.setId;
+          this.updateSetColor(setId, color);
+          return;
+        }
+
+        // Handle action buttons
+        const btn = e.target.closest('[data-action]');
+        if (btn) {
+          const action = btn.dataset.action;
+          const setId = btn.dataset.setId;
+
+          switch (action) {
+            case 'increase':
+              this.updateSetCount(setId, 1);
+              break;
+            case 'decrease':
+              this.updateSetCount(setId, -1);
+              break;
+            case 'remove':
+              this.removeDiceSet(setId);
+              break;
+            case 'color':
+              this.toggleColorDropdown(setId);
+              break;
+          }
+        }
+      });
+    }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.color-picker')) {
+        this.closeAllDropdowns();
+      }
+    });
+  }
+
+  toggleColorDropdown(setId) {
+    const dropdown = this.querySelector(`.color-dropdown[data-set-id="${setId}"]`);
+    const btn = this.querySelector(`.color-btn[data-set-id="${setId}"]`);
+    const wasOpen = dropdown?.classList.contains('open');
+    this.closeAllDropdowns();
+    if (!wasOpen && btn && dropdown) {
+      const rect = btn.getBoundingClientRect();
+      dropdown.style.left = `${rect.left}px`;
+      dropdown.style.top = `${rect.bottom + 4}px`;
+      dropdown.classList.add('open');
+    }
+  }
+
+  closeAllDropdowns() {
+    this.querySelectorAll('.color-dropdown.open').forEach(d => d.classList.remove('open'));
+  }
+
+  addDiceSet() {
+    if (this._diceSets.length >= 4) return;
+
+    const usedColors = new Set(this._diceSets.map(s => s.color));
+    const availableColor = DICE_COLORS.find(c => !usedColors.has(c.hex)) || DICE_COLORS[0];
+
+    this._diceSets.push({
+      id: `set-${this._nextSetId++}`,
+      count: 2,
+      color: availableColor.hex
+    });
+    this.renderDiceSetsConfig();
+    this.setupDiceConfigListeners();
+  }
+
+  removeDiceSet(setId) {
+    if (this._diceSets.length <= 1) return;
+    this._diceSets = this._diceSets.filter(s => s.id !== setId);
+    this.renderDiceSetsConfig();
+    this.setupDiceConfigListeners();
+  }
+
+  updateSetCount(setId, delta) {
+    const set = this._diceSets.find(s => s.id === setId);
+    if (!set) return;
+
+    const newCount = set.count + delta;
+    if (newCount >= 1 && newCount <= 10) {
+      set.count = newCount;
+      const row = this.querySelector(`.dice-set-row[data-set-id="${setId}"]`);
+      if (row) {
+        const valueEl = row.querySelector('.config-value');
+        if (valueEl) valueEl.textContent = newCount;
+      }
+    }
+  }
+
+  updateSetColor(setId, color) {
+    const set = this._diceSets.find(s => s.id === setId);
+    if (!set) return;
+
+    set.color = color;
+    this.closeAllDropdowns();
+    this.renderDiceSetsConfig();
+    this.setupDiceConfigListeners();
   }
 
   handleDiceClick(e, index) {
@@ -137,18 +319,41 @@ class RoomJoin extends HTMLElement {
       return;
     }
 
-    // Save username to localStorage
-    localStorage.setItem('dicebox-username', username);
-
     // Reset join mode if active
     this.resetJoinMode();
+
+    // If not in create mode, show dice config first
+    if (!this._createMode) {
+      this._createMode = true;
+      const configGroup = this.querySelector('#dice-config-group');
+      const createBtn = this.querySelector('#btn-create');
+      if (configGroup) configGroup.style.display = 'block';
+      if (createBtn) createBtn.textContent = 'Start Room';
+      return;
+    }
+
+    // Save username to localStorage
+    localStorage.setItem('dicebox-username', username);
 
     const roomId = this.generateRoomId();
 
     this.dispatchEvent(new CustomEvent('join-room', {
       bubbles: true,
-      detail: { username, roomId, isHost: true }
+      detail: {
+        username,
+        roomId,
+        isHost: true,
+        diceConfig: { diceSets: [...this._diceSets] }
+      }
     }));
+  }
+
+  resetCreateMode() {
+    this._createMode = false;
+    const configGroup = this.querySelector('#dice-config-group');
+    const createBtn = this.querySelector('#btn-create');
+    if (configGroup) configGroup.style.display = 'none';
+    if (createBtn) createBtn.textContent = 'Create Room';
   }
 
   resetJoinMode() {
@@ -167,6 +372,9 @@ class RoomJoin extends HTMLElement {
       this.querySelector('#username').focus();
       return;
     }
+
+    // Reset create mode if active
+    this.resetCreateMode();
 
     // If room ID input is not visible, show it
     if (!this._joinMode) {

@@ -19,15 +19,18 @@ export class RoomManager extends EventTarget {
   /**
    * Create a new room as host
    */
-  createRoom(roomId, username, effectiveId, serverConnected) {
+  createRoom(roomId, username, effectiveId, serverConnected, diceConfig) {
     this.roomId = roomId;
     this.username = username;
     this.isHost = true;
     this.hostPeerId = effectiveId;
     this.myJoinOrder = 0;
 
-    // Initialize room state
+    // Initialize room state with provided dice config
     this.roomState.clear();
+    if (diceConfig) {
+      this.roomState.setDiceConfig(diceConfig);
+    }
 
     // If server is connected, register as host
     if (serverConnected) {
