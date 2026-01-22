@@ -62,11 +62,4 @@ export class MessageRouter extends EventTarget {
   broadcast(message, excludePeerId = null) {
     webrtcManager.broadcast(message, excludePeerId);
   }
-
-  /**
-   * Clear all handlers
-   */
-  clearHandlers() {
-    this.handlers.clear();
-  }
 }

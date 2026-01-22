@@ -224,12 +224,6 @@ export class WebRTCManager extends EventTarget {
     }
   }
 
-  // Accept a connection from a peer (wait for their offer)
-  async acceptPeer(peerId) {
-    console.log(`Preparing to accept connection from peer: ${peerId}`);
-    // Connection will be created when offer is received
-  }
-
   // Set up connection timeout
   startConnectionTimeout(peerId) {
     this.clearConnectionTimeout(peerId);
