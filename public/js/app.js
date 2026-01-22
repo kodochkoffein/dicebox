@@ -23,7 +23,6 @@ class DiceBoxApp {
     // UI components
     this.roomJoin = document.querySelector('room-join');
     this.roomView = document.querySelector('room-view');
-    this.diceConfig = null;
     this.diceRoller = null;
     this.diceHistory = null;
     this.peerList = null;
@@ -173,13 +172,14 @@ class DiceBoxApp {
   setupEventListeners() {
     // Room join UI events
     document.addEventListener('join-room', (e) => {
-      const { roomId, username, isHost } = e.detail;
+      const { roomId, username, isHost, diceConfig } = e.detail;
       if (isHost) {
         this.roomManager.createRoom(
           roomId,
           username,
           this.connectionManager.getEffectiveId(),
-          this.connectionManager.serverConnected
+          this.connectionManager.serverConnected,
+          diceConfig
         );
       } else {
         this.roomManager.joinRoom(roomId, username, this.connectionManager.serverConnected);
@@ -203,9 +203,7 @@ class DiceBoxApp {
       this.handleLocalDiceGrab(e);
     });
 
-    document.addEventListener('dice-config-changed', (e) => {
-      this.handleLocalDiceConfigChange(e.detail);
-    });
+    // Note: dice config is now immutable - set at room creation time
 
     document.addEventListener('dice-dropped', () => {
       this.handleLocalDiceDrop();
@@ -614,7 +612,6 @@ class DiceBoxApp {
     this.roomView.setRoomId(this.roomManager.roomId);
     this.roomView.setHostStatus(this.roomManager.isHost);
 
-    this.diceConfig = this.roomView.querySelector('dice-config');
     this.diceRoller = this.roomView.querySelector('dice-roller');
     this.diceHistory = this.roomView.querySelector('dice-history');
     this.peerList = this.roomView.querySelector('peer-list');
@@ -630,10 +627,6 @@ class DiceBoxApp {
       holders.clear();
       for (const [setId, holder] of roomState.holders) {
         holders.set(setId, holder);
-      }
-
-      if (this.diceConfig) {
-        this.diceConfig.setConfig(this.diceState.getSettings());
       }
     }
     this.updateDiceRollerState();
@@ -672,24 +665,6 @@ class DiceBoxApp {
         setId
       });
     }
-  }
-
-  handleLocalDiceConfigChange({ diceSets }) {
-    if (!this.roomManager.isHost) return;
-
-    const roomState = this.roomManager.getRoomState();
-    this.diceState.setSettings({ diceSets });
-    roomState.setDiceConfig({ diceSets });
-
-    roomState.clearAllHolders();
-    this.diceState.clearAllHolders();
-
-    roomState.broadcast({
-      type: MSG.DICE_CONFIG,
-      diceConfig: { diceSets }
-    });
-
-    this.updateDiceRollerState();
   }
 
   handleLocalDiceDrop() {

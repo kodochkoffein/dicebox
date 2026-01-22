@@ -447,6 +447,141 @@ room-join .btn-join:hover {
   background: var(--primary-color);
 }
 
+/* Dice config in room-join (for room creation) */
+room-join .dice-config-group {
+  animation: slideDown 0.3s ease;
+}
+
+room-join .dice-sets-config {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+room-join .dice-set-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--surface-light);
+  border-radius: 8px;
+}
+
+room-join .color-picker {
+  position: relative;
+}
+
+room-join .color-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+room-join .color-btn:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: none;
+}
+
+room-join .color-dropdown-arrow {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid rgba(0, 0, 0, 0.5);
+}
+
+room-join .color-dropdown {
+  display: none;
+  position: fixed;
+  margin-top: 4px;
+  padding: 8px;
+  background: var(--surface);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 1100;
+  flex-wrap: wrap;
+  width: 140px;
+  gap: 6px;
+}
+
+room-join .color-dropdown.open {
+  display: flex;
+}
+
+room-join .color-option {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+room-join .color-option:hover {
+  transform: scale(1.1);
+}
+
+room-join .color-option.selected {
+  border-color: white;
+}
+
+room-join .count-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+room-join .config-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 1.2rem;
+  font-weight: bold;
+  border-radius: 6px;
+}
+
+room-join .config-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  min-width: 24px;
+  text-align: center;
+}
+
+room-join .remove-set-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 1.2rem;
+  background: var(--danger);
+  border-radius: 6px;
+  line-height: 1;
+}
+
+room-join .remove-set-btn:hover {
+  background: #dc2626;
+}
+
+room-join .add-set-btn {
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  background: var(--secondary-color);
+  border-radius: 6px;
+  width: 100%;
+}
+
+room-join .add-set-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Room View */
 room-view {
   display: none;
