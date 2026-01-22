@@ -1,6 +1,6 @@
 /**
  * WebRTCManager - Handles peer-to-peer connections using WebRTC
- * Simplified for host-based room model - app controls connection initiation
+ * Mesh topology: connects all peers directly, app controls connection initiation
  *
  * TURN Server Configuration:
  * For production deployment, configure TURN servers to handle symmetric NAT traversal.
