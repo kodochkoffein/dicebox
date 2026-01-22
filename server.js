@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const WebSocket = require('ws');
-const { createStorage, SESSION_EXPIRY_SECONDS } = require('./state-storage');
+const { createStorage, SESSION_EXPIRY_SECONDS } = require('./state-storage.js');
 
 const PORT = process.env.PORT || 3000;
 
