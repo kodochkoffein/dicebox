@@ -41,6 +41,14 @@ class DiceRoller extends HTMLElement {
     }
   }
 
+  // Generate random rotation and position offset for a natural dice appearance
+  getRandomDiceTransform() {
+    const rotation = Math.floor(Math.random() * 31) - 15; // -15 to 15 degrees
+    const offsetX = Math.floor(Math.random() * 11) - 5; // -5 to 5 px
+    const offsetY = Math.floor(Math.random() * 11) - 5; // -5 to 5 px
+    return `transform: rotate(${rotation}deg) translate(${offsetX}px, ${offsetY}px);`;
+  }
+
   render() {
     const allHeld = this.allSetsHeld();
 
@@ -110,7 +118,7 @@ class DiceRoller extends HTMLElement {
         ` : ''}
         <div class="dice-display">
           ${hasValues && !isHeld ?
-            values.map(v => `<div class="die">${getDiceSvg(v, pipColor)}</div>`).join('') :
+            values.map(v => `<div class="die" style="${this.getRandomDiceTransform()}">${getDiceSvg(v, pipColor)}</div>`).join('') :
             Array(set.count).fill(0).map(() =>
               `<div class="die-placeholder">${getDiceSvg(1, pipColor)}</div>`
             ).join('')
@@ -226,7 +234,7 @@ class DiceRoller extends HTMLElement {
           const pipColor = getPipColor(set.color);
           const values = rollResults[set.id];
           display.innerHTML = values.map(v =>
-            `<div class="die">${getDiceSvg(v, pipColor)}</div>`
+            `<div class="die" style="${this.getRandomDiceTransform()}">${getDiceSvg(v, pipColor)}</div>`
           ).join('');
         }
       }
@@ -293,7 +301,7 @@ class DiceRoller extends HTMLElement {
         setEl.style.borderColor = 'transparent';
         setEl.innerHTML = `
           <div class="dice-display">
-            ${values.map(v => `<div class="die">${getDiceSvg(v, pipColor)}</div>`).join('')}
+            ${values.map(v => `<div class="die" style="${this.getRandomDiceTransform()}">${getDiceSvg(v, pipColor)}</div>`).join('')}
           </div>
           <div class="grab-hint">Click to grab</div>
         `;
