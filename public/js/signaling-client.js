@@ -1,6 +1,6 @@
 /**
- * SignalingClient - Handles WebSocket connection to minimal ICE broker
- * Only handles: peer ID assignment, room queries, host registration, and WebRTC signaling
+ * SignalingClient - Handles WebSocket connection for mesh topology signaling
+ * Handles: peer ID assignment, room queries, room creation/joining, and WebRTC signaling
  */
 
 // Heartbeat interval (should be less than server's SESSION_EXPIRY)
@@ -12,7 +12,6 @@ export class SignalingClient extends EventTarget {
     this.ws = null;
     this.peerId = null;
     this.roomId = null;
-    this.isHost = false;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this._connectPromise = null;
@@ -83,11 +82,10 @@ export class SignalingClient extends EventTarget {
 
         const wasConnected = this.peerId !== null;
         const previousRoomId = this.roomId;
-        const wasHost = this.isHost;
 
         // Don't clear peerId/roomId - session may be restored on reconnect
         this.dispatchEvent(new CustomEvent('disconnected', {
-          detail: { wasConnected, previousRoomId, wasHost }
+          detail: { wasConnected, previousRoomId }
         }));
 
         this.attemptReconnect();
@@ -221,31 +219,24 @@ export class SignalingClient extends EventTarget {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN && this.peerId !== null;
   }
 
-  // Query if a room exists and who the host is
+  // Query if a room exists and get all peer IDs
   queryRoom(roomId) {
     return this.send({ type: 'query-room', roomId });
   }
 
-  // Register as host for a new room
-  registerHost(roomId) {
-    if (this.send({ type: 'register-host', roomId })) {
+  // Create a new room with dice config
+  createRoom(roomId, diceConfig) {
+    if (this.send({ type: 'create-room', roomId, diceConfig })) {
       this.roomId = roomId;
-      this.isHost = true;
       return true;
     }
     return false;
-  }
-
-  // Claim host role (for migration)
-  claimHost(roomId) {
-    return this.send({ type: 'claim-host', roomId });
   }
 
   // Join an existing room
   joinRoom(roomId) {
     if (this.send({ type: 'join-room', roomId })) {
       this.roomId = roomId;
-      this.isHost = false;
       return true;
     }
     return false;
@@ -255,7 +246,6 @@ export class SignalingClient extends EventTarget {
   leaveRoom() {
     const success = this.send({ type: 'leave-room' });
     this.roomId = null;
-    this.isHost = false;
     return success;
   }
 
@@ -281,7 +271,6 @@ export class SignalingClient extends EventTarget {
     }
     this.peerId = null;
     this.roomId = null;
-    this.isHost = false;
     this._connectPromise = null;
   }
 

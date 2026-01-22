@@ -22,7 +22,6 @@ class DiceRoller extends HTMLElement {
     this.holders = new Map();
 
     this.myPeerId = null;
-    this.isHost = false;
   }
 
   connectedCallback() {
@@ -255,7 +254,7 @@ class DiceRoller extends HTMLElement {
   }
 
   // External API
-  setConfig({ diceSets, holders, myPeerId, isHost }) {
+  setConfig({ diceSets, holders, myPeerId }) {
     const newDiceSets = diceSets || [{ id: 'set-1', count: 2, color: '#ffffff' }];
 
     // Clear currentValues for sets whose count has changed
@@ -269,7 +268,6 @@ class DiceRoller extends HTMLElement {
 
     this.diceSets = newDiceSets;
     this.myPeerId = myPeerId;
-    this.isHost = isHost;
 
     // Convert holders array back to Map
     this.holders.clear();

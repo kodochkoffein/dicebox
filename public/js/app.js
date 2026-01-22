@@ -1,14 +1,12 @@
 /**
  * DiceBox - Main Application
- * Host-based P2P room model with host migration
- * Refactored to use independent managers for better separation of concerns
+ * Mesh topology: all peers are equal, no host/client distinction
  */
 import { signalingClient } from './signaling-client.js';
 import { webrtcManager } from './webrtc-manager.js';
 import { ConnectionManager } from './connection-manager.js';
 import { RoomManager } from './room-manager.js';
 import { DiceStateManager } from './dice-state-manager.js';
-import { HostMigrationManager } from './host-migration-manager.js';
 import { MessageRouter, MSG } from './message-router.js';
 
 class DiceBoxApp {
@@ -17,7 +15,6 @@ class DiceBoxApp {
     this.connectionManager = new ConnectionManager();
     this.roomManager = new RoomManager();
     this.diceState = new DiceStateManager();
-    this.migrationManager = new HostMigrationManager();
     this.messageRouter = new MessageRouter();
 
     // UI components
@@ -48,28 +45,18 @@ class DiceBoxApp {
     }
   }
 
-  // === MESSAGE HANDLERS SETUP ===
+  // === MESSAGE HANDLERS SETUP (Mesh topology - all handlers are equal) ===
 
   setupMessageHandlers() {
-    // Host-only message handlers
     this.messageRouter
-      .onHostMessage(MSG.INTRODUCE, (peerId, msg) => this.hostHandleIntroduce(peerId, msg))
-      .onHostMessage(MSG.ROLL_DICE, (peerId, msg) => this.hostHandleRollDice(peerId, msg))
-      .onHostMessage(MSG.GRAB_DICE, (peerId, msg) => this.hostHandleGrabDice(peerId, msg))
-      .onHostMessage(MSG.DROP_DICE, (peerId) => this.hostHandleDropDice(peerId));
-
-    // Client-only message handlers
-    this.messageRouter
-      .onClientMessage(MSG.WELCOME, (_, msg) => this.clientHandleWelcome(msg));
-
-    // Messages for all peers
-    this.messageRouter
-      .onMessage(MSG.PEER_JOINED, (_, msg) => this.handlePeerJoinedMsg(msg))
-      .onMessage(MSG.PEER_LEFT, (_, msg) => this.handlePeerLeftMsg(msg))
+      .onMessage(MSG.HELLO, (peerId, msg) => this.handleHello(peerId, msg))
+      .onMessage(MSG.WELCOME, (peerId, msg) => this.handleWelcome(peerId, msg))
+      .onMessage(MSG.REQUEST_STATE, (peerId, msg) => this.handleRequestState(peerId, msg))
+      .onMessage(MSG.PEER_JOINED, (peerId, msg) => this.handlePeerJoinedMsg(peerId, msg))
+      .onMessage(MSG.PEER_LEFT, (peerId, msg) => this.handlePeerLeftMsg(peerId, msg))
       .onMessage(MSG.DICE_ROLL, (peerId, msg) => this.handleDiceRollMsg(peerId, msg))
-      .onMessage(MSG.DICE_CONFIG, (_, msg) => this.handleDiceConfigMsg(msg))
-      .onMessage(MSG.DICE_HELD, (_, msg) => this.handleDiceHeldMsg(msg))
-      .onMessage(MSG.HOST_LEAVING, (peerId, msg) => this.handleHostLeavingMsg(peerId, msg));
+      .onMessage(MSG.DICE_GRAB, (peerId, msg) => this.handleDiceGrabMsg(peerId, msg))
+      .onMessage(MSG.DICE_DROP, (peerId, msg) => this.handleDiceDropMsg(peerId, msg));
   }
 
   // === MANAGER EVENTS SETUP ===
@@ -87,11 +74,8 @@ class DiceBoxApp {
           this.roomJoin.setDisconnected();
         }
       },
-      onReconnected: (detail) => {
-        if (this.roomManager.roomId && this.roomManager.isHost) {
-          console.log('Re-registering as host for room:', this.roomManager.roomId);
-          signalingClient.registerHost(this.roomManager.roomId);
-        }
+      onReconnected: () => {
+        // Session should be automatically restored by signaling client
       },
       onReconnectFailed: () => {
         if (this.roomJoin && this.roomJoin.style.display !== 'none') {
@@ -107,40 +91,26 @@ class DiceBoxApp {
 
     // Room manager events
     this.roomManager.setupSignalingEvents({
-      onRegisterHostFailed: () => {
-        this.connectionManager.showStatus('Room already exists', 'disconnected');
+      onCreateRoomFailed: ({ reason }) => {
+        this.connectionManager.showStatus(reason || 'Failed to create room', 'disconnected');
       },
       onJoinFailed: ({ reason }) => {
         this.connectionManager.showStatus(reason || 'Room not found', 'disconnected');
       },
-      onHostDisconnected: ({ roomId }) => {
-        if (!this.roomManager.isHost && this.roomManager.roomId === roomId) {
-          console.log('Host disconnected, initiating migration...');
-          this.connectionManager.showStatus('Host disconnected, reconnecting...', 'connecting');
-          this.migrationManager.initiate(roomId, this.connectionManager.serverConnected);
+      onPeerDisconnected: ({ peerId }) => {
+        // Handle WebRTC disconnection
+        webrtcManager.closePeerConnection(peerId);
+        if (this.peerList) {
+          this.peerList.removePeer(peerId);
         }
-      },
-      onRoomClosed: ({ roomId, reason }) => {
-        if (this.roomManager.roomId === roomId) {
-          console.log(`Room closed: ${reason}`);
-          this.connectionManager.showStatus(reason || 'Room closed', 'disconnected');
-          this.leaveRoom();
-        }
+        this.updateDiceRollerState();
       },
       onSessionRestored: ({ roomId }) => {
         if (roomId && this.roomView.classList.contains('active')) {
-          // We were in a room and got restored - re-establish WebRTC connections
-          console.log('Session restored while in room, re-establishing connections...');
+          console.log('Session restored while in room, reconnecting...');
           this.connectionManager.showStatus('Reconnecting...', 'connecting');
-          this.handleSessionRestored(roomId);
-        }
-      },
-      onHostReconnected: ({ roomId, hostPeerId }) => {
-        if (this.roomManager.roomId === roomId && !this.roomManager.isHost) {
-          console.log('Host reconnected, re-establishing connection...');
-          this.connectionManager.showStatus('Host reconnected', 'connected');
-          // Re-connect to host via WebRTC
-          this.reconnectToHost(hostPeerId);
+          // Re-query room to get current peers
+          signalingClient.queryRoom(roomId);
         }
       }
     });
@@ -149,21 +119,24 @@ class DiceBoxApp {
       this.enterRoom();
     });
 
-    this.roomManager.addEventListener('claim-host-success', (e) => {
-      this.handleBecameHost(e.detail);
+    this.roomManager.addEventListener('room-joined', (e) => {
+      // Room joined, waiting for WebRTC connections to complete
+      this.connectionManager.showStatus('Connecting to peers...', 'connecting');
     });
 
-    this.roomManager.addEventListener('claim-host-failed', () => {
-      this.migrationManager.cancel();
-    });
-
-    // Migration manager events
-    this.migrationManager.addEventListener('migration-failed', () => {
-      this.connectionManager.showStatus('Failed to migrate host', 'disconnected');
-    });
-
-    this.migrationManager.addEventListener('connection-to-new-host-failed', () => {
-      this.connectionManager.showStatus('Lost connection to room', 'disconnected');
+    this.roomManager.addEventListener('peer-left', (e) => {
+      const { peerId, username } = e.detail;
+      if (this.peerList) {
+        this.peerList.removePeer(peerId);
+      }
+      // Clear any dice sets held by this peer
+      const meshState = this.roomManager.getMeshState();
+      const setsHeld = meshState.getSetsHeldByPeer(peerId);
+      for (const setId of setsHeld) {
+        meshState.clearHolder(setId);
+        this.diceState.clearHolder(setId);
+      }
+      this.updateDiceRollerState();
     });
   }
 
@@ -203,8 +176,6 @@ class DiceBoxApp {
       this.handleLocalDiceGrab(e);
     });
 
-    // Note: dice config is now immutable - set at room creation time
-
     document.addEventListener('dice-dropped', () => {
       this.handleLocalDiceDrop();
     });
@@ -224,28 +195,28 @@ class DiceBoxApp {
   }
 
   setupWebRTCEvents() {
-    const roomState = this.roomManager.getRoomState();
-
     webrtcManager.addEventListener('channel-open', (e) => {
       const { peerId, channel } = e.detail;
       console.log(`Channel opened with ${peerId}`);
 
-      if (this.roomManager.isHost) {
-        roomState.setPeerChannel(peerId, channel);
-      } else if (peerId === this.roomManager.hostPeerId) {
-        this.messageRouter.sendToHost(this.roomManager.hostPeerId, {
-          type: MSG.INTRODUCE,
-          username: this.roomManager.username
+      this.roomManager.markPeerConnected(peerId);
+
+      // Send HELLO to introduce ourselves
+      this.messageRouter.sendToPeer(peerId, {
+        type: MSG.HELLO,
+        username: this.roomManager.username
+      });
+
+      // If we don't have state yet, request it from this peer
+      if (!this.roomManager.hasReceivedState() && this.roomManager.inRoom()) {
+        this.messageRouter.sendToPeer(peerId, {
+          type: MSG.REQUEST_STATE
         });
       }
     });
 
     webrtcManager.addEventListener('message', (e) => {
-      this.messageRouter.route(
-        e.detail.peerId,
-        e.detail.message,
-        this.roomManager.isHost
-      );
+      this.messageRouter.route(e.detail.peerId, e.detail.message);
     });
 
     webrtcManager.addEventListener('peer-disconnected', (e) => {
@@ -262,345 +233,206 @@ class DiceBoxApp {
     webrtcManager.addEventListener('connection-timeout', (e) => {
       const { peerId } = e.detail;
       console.log(`Connection to ${peerId} timed out`);
-
-      if (!this.roomManager.isHost && peerId === this.roomManager.hostPeerId) {
-        this.handlePeerDisconnected(peerId);
-      }
+      this.handlePeerDisconnected(peerId);
     });
   }
 
-  // === HOST MESSAGE HANDLERS ===
+  // === MESSAGE HANDLERS (Mesh topology - unified handlers) ===
 
-  hostHandleIntroduce(peerId, { username }) {
+  handleHello(peerId, { username }) {
     console.log(`Peer ${peerId} introduced as ${username}`);
-    const roomState = this.roomManager.getRoomState();
+    const meshState = this.roomManager.getMeshState();
 
-    const channel = webrtcManager.getDataChannel(peerId);
-    roomState.addPeer(peerId, username, channel);
+    // Add peer to our state
+    meshState.addPeer(peerId, username);
 
-    const state = roomState.getState();
-    webrtcManager.sendToPeer(peerId, {
-      type: MSG.WELCOME,
-      yourJoinOrder: roomState.peers.get(peerId).joinOrder,
-      peers: [
-        {
-          peerId: this.connectionManager.peerId,
-          username: this.roomManager.username,
-          joinOrder: this.roomManager.myJoinOrder
-        },
-        ...state.peers.filter(p => p.peerId !== peerId)
-      ],
-      rollHistory: state.rollHistory,
-      diceConfig: state.diceConfig,
-      holders: state.holders
-    });
-
-    roomState.broadcast({
-      type: MSG.PEER_JOINED,
-      peerId,
-      username
-    }, peerId);
-
+    // Add to UI
     if (this.peerList) {
       this.peerList.addPeer(peerId, username, 'connected');
     }
+
+    // If we already have state, broadcast that this peer joined to others
+    if (this.roomManager.hasReceivedState()) {
+      this.messageRouter.broadcast({
+        type: MSG.PEER_JOINED,
+        peerId,
+        username
+      }, peerId);
+    }
   }
 
-  hostHandleRollDice(peerId, { diceType, rollResults, total, rollId }) {
-    const roomState = this.roomManager.getRoomState();
-    const peer = roomState.peers.get(peerId);
-    if (!peer) return;
+  handleRequestState(peerId, msg) {
+    console.log(`Peer ${peerId} requested state`);
+    const meshState = this.roomManager.getMeshState();
 
-    const diceSettings = this.diceState.getSettings();
-    const finalSetResults = [];
-
-    for (const set of diceSettings.diceSets) {
-      const values = rollResults[set.id] || [];
-      const holder = roomState.getHolder(set.id);
-      finalSetResults.push({
-        setId: set.id,
-        color: set.color,
-        values,
-        holderId: holder?.peerId || peerId,
-        holderUsername: holder?.username || peer.username
-      });
-    }
-
-    roomState.clearAllHolders();
-    this.diceState.clearAllHolders();
-
-    const roll = {
-      setResults: finalSetResults,
-      total,
-      rollId,
-      timestamp: Date.now()
-    };
-
-    roomState.addRoll(roll);
-    roomState.broadcast({ type: MSG.DICE_ROLL, ...roll });
-
-    if (this.diceRoller) {
-      this.diceRoller.showRoll(rollResults);
-    }
-    if (this.diceHistory) {
-      this.diceHistory.addRoll(roll);
-    }
-    this.updateDiceRollerState();
+    // Send our current state to this peer
+    this.messageRouter.sendToPeer(peerId, {
+      type: MSG.WELCOME,
+      state: meshState.getSnapshot()
+    });
   }
 
-  hostHandleGrabDice(peerId, { setId }) {
-    const roomState = this.roomManager.getRoomState();
-    const peer = roomState.peers.get(peerId);
-    if (!peer) return;
+  handleWelcome(peerId, { state }) {
+    console.log(`Received state from ${peerId}`);
 
-    if (roomState.getHolder(setId) !== null) {
-      console.log(`Grab rejected - set ${setId} is already held`);
+    // Only accept state if we haven't received it yet
+    if (this.roomManager.hasReceivedState()) {
+      console.log('Already have state, ignoring');
       return;
     }
 
-    roomState.setHolder(setId, peerId, peer.username);
-    this.diceState.setHolder(setId, peerId, peer.username);
+    this.roomManager.setReceivedStateFrom(peerId);
+    const meshState = this.roomManager.getMeshState();
 
-    roomState.broadcast({
-      type: MSG.DICE_HELD,
-      setId,
-      holderPeerId: peerId,
-      holderUsername: peer.username
-    });
+    // Load the state
+    meshState.loadSnapshot(state);
 
-    this.updateDiceRollerState();
-  }
-
-  hostHandleDropDice(peerId) {
-    const roomState = this.roomManager.getRoomState();
-    const setsHeld = roomState.getSetsHeldByPeer(peerId);
-    if (setsHeld.length === 0) return;
-
-    for (const setId of setsHeld) {
-      roomState.clearHolder(setId);
-      this.diceState.clearHolder(setId);
-
-      roomState.broadcast({
-        type: MSG.DICE_HELD,
-        setId,
-        holderPeerId: null,
-        holderUsername: null
-      });
+    // Also update dice state manager
+    this.diceState.setSettings(state.diceConfig);
+    if (state.holders) {
+      const holders = this.diceState.getHolders();
+      holders.clear();
+      for (const [setId, holder] of state.holders) {
+        holders.set(setId, holder);
+      }
     }
 
-    this.updateDiceRollerState();
-  }
-
-  // === CLIENT MESSAGE HANDLERS ===
-
-  clientHandleWelcome({ yourJoinOrder, peers, rollHistory, diceConfig, holders }) {
-    console.log('Received welcome from host');
-    this.roomManager.setJoinOrder(yourJoinOrder);
-
-    this.diceState.setSettings(diceConfig);
-    this.diceState.loadHolders(holders);
-
+    // Now enter the room UI
     this.enterRoom();
 
-    for (const peer of peers) {
+    // Populate peer list and history from state
+    for (const peer of (state.peers || [])) {
       if (peer.peerId !== this.connectionManager.peerId) {
         this.peerList.addPeer(peer.peerId, peer.username, 'connected');
       }
     }
 
-    for (const roll of rollHistory.slice().reverse()) {
+    for (const roll of (state.rollHistory || []).slice().reverse()) {
+      this.diceHistory.addRoll(roll);
+    }
+
+    this.updateDiceRollerState();
+    this.connectionManager.showStatus('Connected', 'connected');
+  }
+
+  handlePeerJoinedMsg(peerId, { peerId: newPeerId, username }) {
+    if (newPeerId === this.connectionManager.peerId) return;
+
+    const meshState = this.roomManager.getMeshState();
+    meshState.addPeer(newPeerId, username);
+
+    if (this.peerList) {
+      this.peerList.addPeer(newPeerId, username, 'connected');
+    }
+  }
+
+  handlePeerLeftMsg(peerId, { peerId: leftPeerId }) {
+    const meshState = this.roomManager.getMeshState();
+    meshState.removePeer(leftPeerId);
+
+    if (this.peerList) {
+      this.peerList.removePeer(leftPeerId);
+    }
+
+    this.updateDiceRollerState();
+  }
+
+  handleDiceRollMsg(peerId, roll) {
+    const meshState = this.roomManager.getMeshState();
+
+    // Check for duplicate
+    if (meshState.hasRoll(roll.rollId)) {
+      return;
+    }
+
+    // Add to state
+    meshState.addRoll(roll);
+    meshState.clearAllHolders();
+    this.diceState.clearAllHolders();
+
+    // Convert setResults to rollResults format for display
+    const rollResults = {};
+    for (const sr of (roll.setResults || [])) {
+      rollResults[sr.setId] = sr.values;
+    }
+
+    // Update UI
+    if (this.diceRoller) {
+      this.diceRoller.showRoll(rollResults);
+    }
+
+    if (this.diceHistory) {
       this.diceHistory.addRoll(roll);
     }
 
     this.updateDiceRollerState();
   }
 
-  // === COMMON MESSAGE HANDLERS ===
+  handleDiceGrabMsg(peerId, { setId, username }) {
+    const meshState = this.roomManager.getMeshState();
 
-  handlePeerJoinedMsg({ peerId, username }) {
-    if (peerId === this.connectionManager.peerId) return;
+    // Set holder in state
+    meshState.setHolder(setId, peerId, username);
+    this.diceState.setHolder(setId, peerId, username);
 
-    if (this.peerList) {
-      this.peerList.addPeer(peerId, username, 'connected');
-    }
-  }
-
-  handlePeerLeftMsg({ peerId }) {
-    if (this.peerList) {
-      this.peerList.removePeer(peerId);
-    }
-  }
-
-  handleDiceRollMsg(fromPeerId, { setResults, total, rollId, timestamp }) {
-    this.diceState.clearAllHolders();
-    this.updateDiceRollerState();
-
-    const weRolled = setResults?.some(sr => sr.holderId === this.connectionManager.peerId);
-    if (weRolled && rollId && this.diceState.isPendingRoll(rollId)) {
-      this.diceState.removePendingRoll(rollId);
-      return;
-    }
-
-    const rollResults = {};
-    for (const sr of (setResults || [])) {
-      rollResults[sr.setId] = sr.values;
-    }
-
-    if (this.diceRoller) {
-      this.diceRoller.showRoll(rollResults);
-    }
-
-    if (this.diceHistory) {
-      this.diceHistory.addRoll({ setResults, total, rollId, timestamp });
-    }
-  }
-
-  handleDiceConfigMsg({ diceConfig }) {
-    this.diceState.setSettings(diceConfig);
-    this.diceState.clearAllHolders();
     this.updateDiceRollerState();
   }
 
-  handleDiceHeldMsg({ setId, holderPeerId, holderUsername }) {
-    if (holderPeerId === null) {
-      if (setId) {
-        this.diceState.clearHolder(setId);
-      } else {
-        this.diceState.clearAllHolders();
-      }
+  handleDiceDropMsg(peerId, { setId }) {
+    const meshState = this.roomManager.getMeshState();
+
+    // Clear holder
+    if (setId) {
+      meshState.clearHolder(setId);
+      this.diceState.clearHolder(setId);
     } else {
-      this.diceState.setHolder(setId, holderPeerId, holderUsername);
-    }
-    this.updateDiceRollerState();
-  }
-
-  handleHostLeavingMsg(fromPeerId, { nextHostPeerId, roomState }) {
-    console.log(`Host is leaving, next host: ${nextHostPeerId}`);
-
-    this.roomManager.getRoomState().loadState(roomState);
-
-    if (nextHostPeerId === this.connectionManager.peerId) {
-      this.migrationManager.initiate(this.roomManager.roomId, this.connectionManager.serverConnected);
-    } else {
-      this.roomManager.setHostPeerId(nextHostPeerId);
-    }
-  }
-
-  // === HOST MIGRATION ===
-
-  handleBecameHost({ roomId }) {
-    console.log('Successfully became new host');
-    this.migrationManager.cancel();
-    this.roomManager.becomeHost(this.connectionManager.peerId);
-
-    this.connectionManager.showStatus('You are now the host', 'connected');
-
-    const roomState = this.roomManager.getRoomState();
-    for (const [peerId] of roomState.peers) {
-      if (peerId !== this.connectionManager.peerId) {
-        const channel = webrtcManager.getDataChannel(peerId);
-        if (channel) {
-          roomState.setPeerChannel(peerId, channel);
-        }
+      // Clear all sets held by this peer
+      const setsHeld = meshState.getSetsHeldByPeer(peerId);
+      for (const heldSetId of setsHeld) {
+        meshState.clearHolder(heldSetId);
+        this.diceState.clearHolder(heldSetId);
       }
     }
 
-    if (this.roomView) {
-      this.roomView.setHostStatus(true);
-    }
+    this.updateDiceRollerState();
   }
 
-  /**
-   * Handle session restoration after reconnect
-   */
-  handleSessionRestored(roomId) {
-    // If we were the host, we should have been automatically restored
-    // If we were a client, we need to reconnect to the host
-    if (this.roomManager.isHost) {
-      console.log('Session restored as host, waiting for peers to reconnect');
-      this.connectionManager.showStatus('Reconnected as host', 'connected');
-    } else if (this.roomManager.hostPeerId) {
-      // Reconnect to host
-      this.reconnectToHost(this.roomManager.hostPeerId);
-    }
-  }
-
-  /**
-   * Reconnect to host after session restoration or host reconnection
-   */
-  reconnectToHost(hostPeerId) {
-    console.log(`Reconnecting to host: ${hostPeerId}`);
-
-    // Close any existing connection to this peer
-    webrtcManager.closePeerConnection(hostPeerId);
-
-    // Initiate new connection
-    webrtcManager.connectToPeer(hostPeerId)
-      .then(() => {
-        console.log('WebRTC connection to host re-established');
-        this.connectionManager.showStatus('Connected', 'connected');
-      })
-      .catch((error) => {
-        console.error('Failed to reconnect to host:', error);
-        this.connectionManager.showStatus('Failed to reconnect', 'disconnected');
-      });
-  }
+  // === PEER DISCONNECTION ===
 
   handlePeerDisconnected(peerId) {
     console.log(`Peer disconnected: ${peerId}`);
-    const roomState = this.roomManager.getRoomState();
+    const meshState = this.roomManager.getMeshState();
 
-    if (this.roomManager.isHost) {
-      const peer = roomState.peers.get(peerId);
-      if (peer) {
-        roomState.removePeer(peerId);
+    const peer = meshState.getPeer(peerId);
+    if (peer) {
+      // Clear dice sets held by this peer
+      const setsHeld = meshState.getSetsHeldByPeer(peerId);
+      for (const setId of setsHeld) {
+        meshState.clearHolder(setId);
+        this.diceState.clearHolder(setId);
 
-        const setsHeld = roomState.getSetsHeldByPeer(peerId);
-        if (setsHeld.length > 0) {
-          for (const setId of setsHeld) {
-            roomState.clearHolder(setId);
-            this.diceState.clearHolder(setId);
-
-            roomState.broadcast({
-              type: MSG.DICE_HELD,
-              setId,
-              holderPeerId: null,
-              holderUsername: null
-            });
-          }
-          this.updateDiceRollerState();
-        }
-
-        roomState.broadcast({
-          type: MSG.PEER_LEFT,
-          peerId,
-          username: peer.username
-        });
-
-        if (this.peerList) {
-          this.peerList.removePeer(peerId);
-        }
-      }
-    } else if (peerId === this.roomManager.hostPeerId) {
-      console.log('Host disconnected! Initiating migration...');
-      this.connectionManager.showStatus('Host disconnected, migrating...', 'connecting');
-
-      const nextHost = roomState.getNextHostCandidate(this.roomManager.hostPeerId);
-
-      if (this.migrationManager.shouldBecomeHost(
-        this.roomManager.myJoinOrder,
-        nextHost,
-        this.roomManager.hostPeerId
-      )) {
-        this.migrationManager.initiate(this.roomManager.roomId, this.connectionManager.serverConnected);
-      } else {
-        this.roomManager.setHostPeerId(nextHost.peerId);
-        console.log(`Expecting ${nextHost.peerId} to become new host`);
-
-        this.migrationManager.attemptConnectToNewHost(nextHost.peerId, 0, (pId) => {
-          return !this.roomManager.isHost && this.roomManager.hostPeerId === pId;
+        // Broadcast that the dice was dropped
+        this.messageRouter.broadcast({
+          type: MSG.DICE_DROP,
+          setId,
+          peerId
         });
       }
+
+      meshState.removePeer(peerId);
+
+      // Broadcast peer left to others
+      this.messageRouter.broadcast({
+        type: MSG.PEER_LEFT,
+        peerId,
+        username: peer.username
+      });
+
+      if (this.peerList) {
+        this.peerList.removePeer(peerId);
+      }
+
+      this.updateDiceRollerState();
     }
   }
 
@@ -610,7 +442,6 @@ class DiceBoxApp {
     this.roomJoin.style.display = 'none';
     this.roomView.show();
     this.roomView.setRoomId(this.roomManager.roomId);
-    this.roomView.setHostStatus(this.roomManager.isHost);
 
     this.diceRoller = this.roomView.querySelector('dice-roller');
     this.diceHistory = this.roomView.querySelector('dice-history');
@@ -619,19 +450,20 @@ class DiceBoxApp {
     this.peerList.setSelf(this.connectionManager.getEffectiveId(), this.roomManager.username);
     this.diceHistory.peerId = this.connectionManager.getEffectiveId();
 
-    if (this.roomManager.isHost) {
-      const roomState = this.roomManager.getRoomState();
-      this.diceState.setSettings(roomState.diceConfig);
+    // Load dice config from mesh state
+    const meshState = this.roomManager.getMeshState();
+    this.diceState.setSettings(meshState.getDiceConfig());
 
-      const holders = this.diceState.getHolders();
-      holders.clear();
-      for (const [setId, holder] of roomState.holders) {
-        holders.set(setId, holder);
-      }
+    // Load holders
+    const holders = this.diceState.getHolders();
+    holders.clear();
+    for (const [setId, holder] of meshState.getHolders()) {
+      holders.set(setId, holder);
     }
+
     this.updateDiceRollerState();
 
-    console.log(`Entered room ${this.roomManager.roomId} as ${this.roomManager.username} (${this.roomManager.isHost ? 'HOST' : 'CLIENT'})`);
+    console.log(`Entered room ${this.roomManager.roomId} as ${this.roomManager.username}`);
   }
 
   // === LOCAL DICE ACTIONS ===
@@ -640,30 +472,27 @@ class DiceBoxApp {
     const setId = e?.detail?.setId;
     if (!setId) return;
 
-    if (this.diceState.isSetHeld(setId)) {
+    const meshState = this.roomManager.getMeshState();
+
+    if (meshState.isSetHeld(setId)) {
       return;
     }
 
     const myId = this.connectionManager.getEffectiveId();
 
-    if (this.roomManager.isHost) {
-      const roomState = this.roomManager.getRoomState();
-      roomState.setHolder(setId, myId, this.roomManager.username);
+    // Grab locally
+    if (meshState.tryGrab(setId, myId, this.roomManager.username)) {
       this.diceState.setHolder(setId, myId, this.roomManager.username);
 
-      roomState.broadcast({
-        type: MSG.DICE_HELD,
+      // Broadcast to all peers
+      this.messageRouter.broadcast({
+        type: MSG.DICE_GRAB,
         setId,
-        holderPeerId: myId,
-        holderUsername: this.roomManager.username
+        peerId: myId,
+        username: this.roomManager.username
       });
 
       this.updateDiceRollerState();
-    } else {
-      this.messageRouter.sendToHost(this.roomManager.hostPeerId, {
-        type: MSG.GRAB_DICE,
-        setId
-      });
     }
   }
 
@@ -672,41 +501,49 @@ class DiceBoxApp {
 
     if (!this.diceState.isPeerHolding(myId)) return;
 
-    if (this.roomManager.isHost) {
-      const roomState = this.roomManager.getRoomState();
-      const setsToRelease = this.diceState.getSetsHeldByPeer(myId);
+    const meshState = this.roomManager.getMeshState();
+    const setsToRelease = meshState.getSetsHeldByPeer(myId);
 
-      for (const setId of setsToRelease) {
-        roomState.clearHolder(setId);
-        this.diceState.clearHolder(setId);
+    for (const setId of setsToRelease) {
+      meshState.clearHolder(setId);
+      this.diceState.clearHolder(setId);
 
-        roomState.broadcast({
-          type: MSG.DICE_HELD,
-          setId,
-          holderPeerId: null,
-          holderUsername: null
-        });
-      }
-
-      this.updateDiceRollerState();
-    } else {
-      this.messageRouter.sendToHost(this.roomManager.hostPeerId, {
-        type: MSG.DROP_DICE
+      // Broadcast to all peers
+      this.messageRouter.broadcast({
+        type: MSG.DICE_DROP,
+        setId,
+        peerId: myId
       });
     }
+
+    this.updateDiceRollerState();
   }
 
-  handleLocalDiceRoll({ diceType, rollResults, total, holders }) {
+  handleLocalDiceRoll({ rollResults, total, holders }) {
     const myId = this.connectionManager.getEffectiveId();
-    const rollId = this.diceState.generateRollId(myId);
+    const meshState = this.roomManager.getMeshState();
 
-    const setResults = this.diceState.buildSetResultsWithHolders(
-      rollResults,
-      holders,
-      myId,
-      this.roomManager.username
-    );
+    // Generate roll ID
+    const rollId = `${myId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+    // Build set results with holder info
+    const diceSettings = this.diceState.getSettings();
+    const setResults = [];
+
+    for (const set of diceSettings.diceSets) {
+      const values = rollResults[set.id] || [];
+      const holder = meshState.getHolder(set.id);
+      setResults.push({
+        setId: set.id,
+        color: set.color,
+        values,
+        holderId: holder?.peerId || myId,
+        holderUsername: holder?.username || this.roomManager.username
+      });
+    }
+
+    // Clear holders
+    meshState.clearAllHolders();
     this.diceState.clearAllHolders();
 
     const roll = {
@@ -716,29 +553,18 @@ class DiceBoxApp {
       timestamp: Date.now()
     };
 
-    if (this.roomManager.isHost) {
-      const roomState = this.roomManager.getRoomState();
-      roomState.clearAllHolders();
-      roomState.addRoll(roll);
-      roomState.broadcast({ type: MSG.DICE_ROLL, ...roll });
+    // Add to local state
+    meshState.addRoll(roll);
 
-      if (this.diceHistory) {
-        this.diceHistory.addRoll(roll);
-      }
-    } else {
-      this.diceState.addPendingRoll(rollId);
+    // Broadcast to all peers
+    this.messageRouter.broadcast({
+      type: MSG.DICE_ROLL,
+      ...roll
+    });
 
-      this.messageRouter.sendToHost(this.roomManager.hostPeerId, {
-        type: MSG.ROLL_DICE,
-        diceType,
-        rollResults,
-        total,
-        rollId
-      });
-
-      if (this.diceHistory) {
-        this.diceHistory.addRoll(roll);
-      }
+    // Update local UI
+    if (this.diceHistory) {
+      this.diceHistory.addRoll(roll);
     }
 
     this.updateDiceRollerState();
@@ -753,8 +579,7 @@ class DiceBoxApp {
     this.diceRoller.setConfig({
       diceSets: diceSettings.diceSets,
       holders: Array.from(holders.entries()),
-      myPeerId: this.connectionManager.getEffectiveId(),
-      isHost: this.roomManager.isHost
+      myPeerId: this.connectionManager.getEffectiveId()
     });
 
     if (this.peerList) {
@@ -772,20 +597,12 @@ class DiceBoxApp {
   // === LEAVE ROOM ===
 
   leaveRoom() {
-    this.migrationManager.cancel();
-
-    if (this.roomManager.isHost) {
-      const roomState = this.roomManager.getRoomState();
-      const nextHost = roomState.getNextHostCandidate();
-
-      if (nextHost) {
-        roomState.broadcast({
-          type: MSG.HOST_LEAVING,
-          nextHostPeerId: nextHost.peerId,
-          roomState: roomState.getState()
-        });
-      }
-    }
+    // Broadcast that we're leaving
+    this.messageRouter.broadcast({
+      type: MSG.PEER_LEFT,
+      peerId: this.connectionManager.peerId,
+      username: this.roomManager.username
+    });
 
     this.roomManager.leaveRoom();
     this.diceState.reset();

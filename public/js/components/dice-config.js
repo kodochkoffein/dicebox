@@ -1,6 +1,6 @@
 /**
- * DiceConfig - Host-only component for configuring room dice settings
- * Supports multiple dice sets with different colors
+ * DiceConfig - Component for configuring room dice settings
+ * Used during room creation to set up dice sets with different colors
  */
 
 // Predefined color palette

@@ -756,7 +756,7 @@ dice-roller .dice-set.other-hold {
   opacity: 0.7;
 }
 
-/* Dice Config Component (host only) */
+/* Dice Config Component (room creation) */
 dice-config {
   display: block;
   margin-bottom: 16px;

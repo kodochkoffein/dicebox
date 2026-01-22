@@ -1,80 +1,48 @@
 /**
  * MessageRouter - Routes P2P messages to appropriate handlers
+ * Mesh topology: all peers are equal, no host/client distinction
  */
 import { webrtcManager } from './webrtc-manager.js';
 
-// Message types for P2P communication
+// Message types for P2P communication (mesh topology)
 export const MSG = {
-  // Host -> Peer
-  WELCOME: 'welcome',           // Initial state sync when peer joins
-  PEER_JOINED: 'peer-joined',   // Notify all peers of new peer
-  PEER_LEFT: 'peer-left',       // Notify all peers of departed peer
-  DICE_ROLL: 'dice-roll',       // Broadcast dice roll
-  DICE_CONFIG: 'dice-config',   // Broadcast dice configuration change
-  DICE_HELD: 'dice-held',       // Broadcast that someone grabbed the dice
-  HOST_LEAVING: 'host-leaving', // Host is leaving, includes migration info
+  // Peer discovery & sync
+  HELLO: 'hello',             // New peer announces itself with username
+  WELCOME: 'welcome',         // Existing peer responds with current state
+  REQUEST_STATE: 'request-state', // Peer requests state snapshot
 
-  // Peer -> Host
-  INTRODUCE: 'introduce',       // Peer sends username to host
-  ROLL_DICE: 'roll-dice',       // Peer requests dice roll broadcast
-  GRAB_DICE: 'grab-dice',       // Peer wants to hold the dice
-  DROP_DICE: 'drop-dice',       // Host forces holder to drop dice
+  // Peer lifecycle (broadcast to all)
+  PEER_JOINED: 'peer-joined', // Notify all peers of new peer
+  PEER_LEFT: 'peer-left',     // Notify all peers of departed peer
+
+  // Dice actions (broadcast to all)
+  DICE_ROLL: 'dice-roll',     // Broadcast dice roll result
+  DICE_GRAB: 'dice-grab',     // Peer grabbed a dice set
+  DICE_DROP: 'dice-drop',     // Peer dropped a dice set
 };
 
 export class MessageRouter extends EventTarget {
   constructor() {
     super();
-    this.handlers = {
-      host: new Map(),
-      client: new Map(),
-      all: new Map()
-    };
+    this.handlers = new Map();
   }
 
   /**
-   * Register a handler for messages to host
-   */
-  onHostMessage(type, handler) {
-    this.handlers.host.set(type, handler);
-    return this;
-  }
-
-  /**
-   * Register a handler for messages from host (to clients)
-   */
-  onClientMessage(type, handler) {
-    this.handlers.client.set(type, handler);
-    return this;
-  }
-
-  /**
-   * Register a handler for messages to all peers
+   * Register a handler for a message type
    */
   onMessage(type, handler) {
-    this.handlers.all.set(type, handler);
+    this.handlers.set(type, handler);
     return this;
   }
 
   /**
    * Route an incoming message to the appropriate handler
    */
-  route(fromPeerId, message, isHost) {
+  route(fromPeerId, message) {
     console.log(`Message from ${fromPeerId}:`, message.type);
 
-    // First check message-type-specific handlers
-    if (isHost && this.handlers.host.has(message.type)) {
-      this.handlers.host.get(message.type)(fromPeerId, message);
-      return;
-    }
-
-    if (!isHost && this.handlers.client.has(message.type)) {
-      this.handlers.client.get(message.type)(fromPeerId, message);
-      return;
-    }
-
-    // Check handlers for all peers
-    if (this.handlers.all.has(message.type)) {
-      this.handlers.all.get(message.type)(fromPeerId, message);
+    if (this.handlers.has(message.type)) {
+      this.handlers.get(message.type)(fromPeerId, message);
       return;
     }
 
@@ -89,20 +57,16 @@ export class MessageRouter extends EventTarget {
   }
 
   /**
-   * Send a message to the host
+   * Broadcast a message to all connected peers
    */
-  sendToHost(hostPeerId, message) {
-    if (hostPeerId) {
-      webrtcManager.sendToPeer(hostPeerId, message);
-    }
+  broadcast(message, excludePeerId = null) {
+    webrtcManager.broadcast(message, excludePeerId);
   }
 
   /**
    * Clear all handlers
    */
   clearHandlers() {
-    this.handlers.host.clear();
-    this.handlers.client.clear();
-    this.handlers.all.clear();
+    this.handlers.clear();
   }
 }

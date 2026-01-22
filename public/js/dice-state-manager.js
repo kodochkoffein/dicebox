@@ -120,7 +120,7 @@ export class DiceStateManager extends EventTarget {
   }
 
   /**
-   * Load holders from an array (for syncing from host)
+   * Load holders from an array (for syncing state from peers)
    */
   loadHolders(holdersArray) {
     this.holders.clear();

@@ -1,50 +1,46 @@
 /**
- * RoomManager - Handles room lifecycle (create/join/leave)
+ * RoomManager - Handles room lifecycle for mesh topology
+ * All peers are equal - no host/client distinction
  */
 import { signalingClient } from './signaling-client.js';
 import { webrtcManager } from './webrtc-manager.js';
-import { RoomHost } from './room-host.js';
+import { MeshState } from './mesh-state.js';
 
 export class RoomManager extends EventTarget {
   constructor() {
     super();
     this.roomId = null;
     this.username = null;
-    this.isHost = false;
-    this.hostPeerId = null;
-    this.myJoinOrder = 0;
-    this.roomState = new RoomHost();
+    this.meshState = new MeshState();
+    this.pendingConnections = new Set(); // Peers we're trying to connect to
+    this.receivedStateFrom = null; // Track which peer gave us initial state
   }
 
   /**
-   * Create a new room as host
+   * Create a new room
    */
-  createRoom(roomId, username, effectiveId, serverConnected, diceConfig) {
+  createRoom(roomId, username, myPeerId, serverConnected, diceConfig) {
     this.roomId = roomId;
     this.username = username;
-    this.isHost = true;
-    this.hostPeerId = effectiveId;
-    this.myJoinOrder = 0;
 
-    // Initialize room state with provided dice config
-    this.roomState.clear();
-    if (diceConfig) {
-      this.roomState.setDiceConfig(diceConfig);
-    }
+    // Initialize mesh state
+    this.meshState.clear();
+    this.meshState.setDiceConfig(diceConfig);
+    this.meshState.addPeer(myPeerId, username);
 
-    // If server is connected, register as host
+    // Register room with server
     if (serverConnected) {
-      signalingClient.registerHost(roomId);
+      signalingClient.createRoom(roomId, diceConfig);
     }
 
-    console.log(`Created room ${roomId} as host (server ${serverConnected ? 'connected' : 'offline'})`);
+    console.log(`Created room ${roomId} (server ${serverConnected ? 'connected' : 'offline'})`);
     this.dispatchEvent(new CustomEvent('room-created', {
-      detail: { roomId, isHost: true }
+      detail: { roomId }
     }));
   }
 
   /**
-   * Join an existing room (requires server)
+   * Join an existing room
    */
   joinRoom(roomId, username, serverConnected) {
     if (!serverConnected) {
@@ -56,9 +52,9 @@ export class RoomManager extends EventTarget {
 
     this.roomId = roomId;
     this.username = username;
-    this.isHost = false;
+    this.receivedStateFrom = null;
 
-    // Query server to find the host
+    // Query room to get list of peers
     signalingClient.queryRoom(roomId);
     return true;
   }
@@ -66,49 +62,106 @@ export class RoomManager extends EventTarget {
   /**
    * Handle room info response from server
    */
-  handleRoomInfo({ roomId, exists, hostPeerId }) {
+  handleRoomInfo({ roomId, exists, peerIds, diceConfig }) {
     if (roomId !== this.roomId) return;
 
-    if (exists) {
-      console.log(`Room ${roomId} exists, joining as client. Host: ${hostPeerId}`);
-      this.hostPeerId = hostPeerId;
+    if (exists && peerIds && peerIds.length > 0) {
+      console.log(`Room ${roomId} exists with ${peerIds.length} peers, joining...`);
+
+      // Set dice config from room
+      if (diceConfig) {
+        this.meshState.setDiceConfig(diceConfig);
+      }
+
+      // Join the room via signaling
       signalingClient.joinRoom(roomId);
     } else {
       this.dispatchEvent(new CustomEvent('join-failed', {
-        detail: { reason: 'Room not found' }
+        detail: { reason: exists ? 'Room is empty' : 'Room not found' }
       }));
       this.roomId = null;
     }
   }
 
   /**
-   * Handle successful room join
+   * Handle successful room join - connect to all peers
    */
-  handleJoinRoomSuccess({ roomId, hostPeerId }) {
-    console.log(`Joined room ${roomId}, connecting to host ${hostPeerId}`);
-    this.hostPeerId = hostPeerId;
+  handleJoinRoomSuccess({ roomId, peerIds, diceConfig }) {
+    console.log(`Joined room ${roomId}, connecting to ${peerIds.length} peers`);
 
-    // Initiate WebRTC connection to host
-    webrtcManager.connectToPeer(hostPeerId);
+    // Set dice config
+    if (diceConfig) {
+      this.meshState.setDiceConfig(diceConfig);
+    }
+
+    // Connect to all existing peers
+    this.pendingConnections = new Set(peerIds);
+    for (const peerId of peerIds) {
+      webrtcManager.connectToPeer(peerId);
+    }
 
     this.dispatchEvent(new CustomEvent('room-joined', {
-      detail: { roomId, hostPeerId }
+      detail: { roomId, peerIds, diceConfig }
     }));
   }
 
   /**
-   * Handle host registration confirmation
+   * Handle room creation confirmation
    */
-  handleHostRegistered({ roomId }) {
-    console.log(`Registered as host for room ${roomId} with server`);
-    this.dispatchEvent(new CustomEvent('host-registered', { detail: { roomId } }));
+  handleCreateRoomSuccess({ roomId }) {
+    console.log(`Room ${roomId} created successfully`);
+    this.dispatchEvent(new CustomEvent('create-room-success', { detail: { roomId } }));
+  }
+
+  /**
+   * Handle room creation failure
+   */
+  handleCreateRoomFailed({ roomId, reason }) {
+    console.error('Failed to create room:', reason);
+    this.dispatchEvent(new CustomEvent('create-room-failed', { detail: { roomId, reason } }));
+  }
+
+  /**
+   * Handle notification that a peer is joining (for existing room members)
+   */
+  handlePeerJoining({ peerId, roomId }) {
+    if (roomId !== this.roomId) return;
+    console.log(`Peer ${peerId} is joining room`);
+    // We'll receive their HELLO message when WebRTC connects
+  }
+
+  /**
+   * Handle peer disconnection notification from server
+   */
+  handlePeerDisconnected({ peerId, roomId }) {
+    if (roomId !== this.roomId) return;
+
+    const peer = this.meshState.getPeer(peerId);
+    if (peer) {
+      this.meshState.removePeer(peerId);
+      this.dispatchEvent(new CustomEvent('peer-left', {
+        detail: { peerId, username: peer.username }
+      }));
+    }
+  }
+
+  /**
+   * Handle peer reconnection notification from server
+   */
+  handlePeerReconnected({ peerId, roomId }) {
+    if (roomId !== this.roomId) return;
+    console.log(`Peer ${peerId} reconnected to room`);
+
+    // Reconnect WebRTC to this peer if we're not already connected
+    if (!webrtcManager.isConnectedTo(peerId)) {
+      webrtcManager.connectToPeer(peerId);
+    }
   }
 
   /**
    * Leave the current room
    */
   leaveRoom() {
-    const wasHost = this.isHost;
     const oldRoomId = this.roomId;
 
     // Clean up
@@ -117,49 +170,21 @@ export class RoomManager extends EventTarget {
 
     // Reset state
     this.roomId = null;
-    this.isHost = false;
-    this.hostPeerId = null;
-    this.roomState.clear();
-    this.myJoinOrder = 0;
+    this.meshState.clear();
+    this.pendingConnections.clear();
+    this.receivedStateFrom = null;
 
     console.log(`Left room ${oldRoomId}`);
     this.dispatchEvent(new CustomEvent('room-left', {
-      detail: { roomId: oldRoomId, wasHost }
+      detail: { roomId: oldRoomId }
     }));
   }
 
   /**
-   * Become the new host (after migration)
+   * Get mesh state object
    */
-  becomeHost(peerId) {
-    console.log('Successfully became new host');
-    this.isHost = true;
-    this.hostPeerId = peerId;
-
-    this.dispatchEvent(new CustomEvent('became-host', {
-      detail: { peerId }
-    }));
-  }
-
-  /**
-   * Update host peer ID (when host changes)
-   */
-  setHostPeerId(peerId) {
-    this.hostPeerId = peerId;
-  }
-
-  /**
-   * Set join order
-   */
-  setJoinOrder(order) {
-    this.myJoinOrder = order;
-  }
-
-  /**
-   * Get room state object
-   */
-  getRoomState() {
-    return this.roomState;
+  getMeshState() {
+    return this.meshState;
   }
 
   /**
@@ -170,6 +195,34 @@ export class RoomManager extends EventTarget {
   }
 
   /**
+   * Mark that we've received state from a peer
+   */
+  setReceivedStateFrom(peerId) {
+    this.receivedStateFrom = peerId;
+  }
+
+  /**
+   * Check if we've received initial state
+   */
+  hasReceivedState() {
+    return this.receivedStateFrom !== null;
+  }
+
+  /**
+   * Remove peer from pending connections
+   */
+  markPeerConnected(peerId) {
+    this.pendingConnections.delete(peerId);
+  }
+
+  /**
+   * Check if we have pending connections
+   */
+  hasPendingConnections() {
+    return this.pendingConnections.size > 0;
+  }
+
+  /**
    * Setup signaling server event listeners for room events
    */
   setupSignalingEvents(callbacks) {
@@ -177,14 +230,13 @@ export class RoomManager extends EventTarget {
       this.handleRoomInfo(e.detail);
     });
 
-    signalingClient.addEventListener('register-host-success', (e) => {
-      this.handleHostRegistered(e.detail);
+    signalingClient.addEventListener('create-room-success', (e) => {
+      this.handleCreateRoomSuccess(e.detail);
     });
 
-    signalingClient.addEventListener('register-host-failed', (e) => {
-      console.error('Failed to register as host:', e.detail.reason);
-      this.dispatchEvent(new CustomEvent('register-host-failed', { detail: e.detail }));
-      callbacks.onRegisterHostFailed?.(e.detail);
+    signalingClient.addEventListener('create-room-failed', (e) => {
+      this.handleCreateRoomFailed(e.detail);
+      callbacks.onCreateRoomFailed?.(e.detail);
     });
 
     signalingClient.addEventListener('join-room-success', (e) => {
@@ -197,35 +249,24 @@ export class RoomManager extends EventTarget {
       callbacks.onJoinFailed?.(e.detail);
     });
 
-    signalingClient.addEventListener('peer-connecting', (e) => {
-      if (this.isHost) {
-        console.log(`Peer ${e.detail.peerId} wants to connect`);
-        this.dispatchEvent(new CustomEvent('peer-connecting', { detail: e.detail }));
-        callbacks.onPeerConnecting?.(e.detail);
-      }
+    signalingClient.addEventListener('peer-joining', (e) => {
+      this.handlePeerJoining(e.detail);
+      callbacks.onPeerJoining?.(e.detail);
     });
 
-    signalingClient.addEventListener('claim-host-success', (e) => {
-      this.dispatchEvent(new CustomEvent('claim-host-success', { detail: e.detail }));
-      callbacks.onClaimHostSuccess?.(e.detail);
+    signalingClient.addEventListener('peer-disconnected', (e) => {
+      this.handlePeerDisconnected(e.detail);
+      callbacks.onPeerDisconnected?.(e.detail);
     });
 
-    signalingClient.addEventListener('claim-host-failed', (e) => {
-      console.log('Another peer claimed host');
-      this.dispatchEvent(new CustomEvent('claim-host-failed', { detail: e.detail }));
-      callbacks.onClaimHostFailed?.(e.detail);
+    signalingClient.addEventListener('peer-reconnected', (e) => {
+      this.handlePeerReconnected(e.detail);
+      callbacks.onPeerReconnected?.(e.detail);
     });
 
-    signalingClient.addEventListener('host-disconnected', (e) => {
-      console.log(`Host disconnected from room ${e.detail.roomId}`);
-      this.dispatchEvent(new CustomEvent('host-disconnected', { detail: e.detail }));
-      callbacks.onHostDisconnected?.(e.detail);
-    });
-
-    signalingClient.addEventListener('room-closed', (e) => {
-      console.log(`Room ${e.detail.roomId} closed: ${e.detail.reason}`);
-      this.dispatchEvent(new CustomEvent('room-closed', { detail: e.detail }));
-      callbacks.onRoomClosed?.(e.detail);
+    signalingClient.addEventListener('peer-left', (e) => {
+      this.handlePeerDisconnected(e.detail); // Same handling
+      callbacks.onPeerLeft?.(e.detail);
     });
 
     signalingClient.addEventListener('session-restored', (e) => {
@@ -233,18 +274,9 @@ export class RoomManager extends EventTarget {
       console.log(`Session restored, previous room: ${roomId}`);
       if (roomId) {
         this.roomId = roomId;
-        // isHost will be determined when we get host-reconnected or need to rejoin
       }
       this.dispatchEvent(new CustomEvent('session-restored', { detail: e.detail }));
       callbacks.onSessionRestored?.(e.detail);
-    });
-
-    signalingClient.addEventListener('host-reconnected', (e) => {
-      const { roomId, hostPeerId } = e.detail;
-      console.log(`Host reconnected to room ${roomId}`);
-      this.hostPeerId = hostPeerId;
-      this.dispatchEvent(new CustomEvent('host-reconnected', { detail: e.detail }));
-      callbacks.onHostReconnected?.(e.detail);
     });
   }
 }
