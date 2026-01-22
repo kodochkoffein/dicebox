@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const WebSocket = require('ws');
+const { createStorage, SESSION_EXPIRY_SECONDS } = require('./state-storage');
 
 const PORT = process.env.PORT || 3000;
 
@@ -44,9 +45,22 @@ const RATE_LIMIT = {
   maxConnectionsPerIp: 10,  // Max concurrent connections per IP
 };
 
-// Track connections per IP for rate limiting
+// Local maps for WebSocket references (cannot be stored in Redis)
+const wsConnections = new Map();  // peerId -> ws
+const hostWsConnections = new Map();  // roomId -> ws
+
+// Track connections per IP for rate limiting (local per instance)
 const connectionsByIp = new Map();  // ip -> Set of ws connections
 const messageRates = new Map();     // peerId -> { count, windowStart }
+
+// Room cleanup timers (local per instance)
+const cleanupTimers = new Map();  // roomId -> timeoutId
+
+// Grace period before deleting a room when host disconnects (allows reconnection/migration)
+const ROOM_CLEANUP_DELAY = 30000; // 30 seconds
+
+// State storage (Redis or in-memory)
+let storage;
 
 /**
  * Generate TURN credentials
@@ -98,7 +112,7 @@ function generateTurnCredentials() {
 }
 
 // Simple static file server with API endpoints
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   // CORS headers for API endpoints
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -128,13 +142,20 @@ const server = http.createServer((req, res) => {
 
   // API: Health check
   if (req.url === '/api/health' && req.method === 'GET') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'ok',
-      rooms: rooms.size,
-      peers: peers.size,
-      turnConfigured: !!TURN_CONFIG.urls
-    }));
+    try {
+      const roomCount = await storage.getRoomCount();
+      const peerCount = await storage.getPeerCount();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        status: 'ok',
+        rooms: roomCount,
+        peers: peerCount,
+        turnConfigured: !!TURN_CONFIG.urls
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'error', error: err.message }));
+    }
     return;
   }
 
@@ -158,24 +179,6 @@ const server = http.createServer((req, res) => {
 
 // WebSocket signaling server - MINIMAL ICE BROKER
 const wss = new WebSocket.Server({ server });
-
-// Room tracking: roomId -> { hostPeerId, hostWs, members: Set<peerId>, cleanupTimer }
-const rooms = new Map();
-
-// Peer connections: peerId -> { ws, roomId, ip, sessionToken }
-const peers = new Map();
-
-// Session management: sessionToken -> { peerId, roomId, lastSeen }
-// Sessions allow peers to reconnect with the same identity after brief disconnects
-const sessions = new Map();
-
-// Session configuration
-const SESSION_EXPIRY = 5 * 60 * 1000; // 5 minutes
-const SESSION_CLEANUP_INTERVAL = 60 * 1000; // Check for expired sessions every minute
-const HEARTBEAT_INTERVAL = 30 * 1000; // Client should send heartbeat every 30s
-
-// Grace period before deleting a room when host disconnects (allows reconnection/migration)
-const ROOM_CLEANUP_DELAY = 30000; // 30 seconds
 
 // Generate cryptographically secure peer ID
 function generatePeerId() {
@@ -264,9 +267,9 @@ function sendTo(ws, message) {
 }
 
 function sendToPeer(peerId, message) {
-  const peer = peers.get(peerId);
-  if (peer) {
-    sendTo(peer.ws, message);
+  const ws = wsConnections.get(peerId);
+  if (ws) {
+    sendTo(ws, message);
   }
 }
 
@@ -274,36 +277,34 @@ function sendError(ws, errorType, reason) {
   sendTo(ws, { type: 'error', errorType, reason });
 }
 
-// Update session's roomId when peer joins/leaves a room
-function updateSessionRoom(sessionToken, roomId) {
-  const session = sessions.get(sessionToken);
-  if (session) {
-    session.roomId = roomId;
-  }
-}
-
 // Schedule room cleanup after host disconnects (allows time for migration or reconnection)
-function scheduleRoomCleanup(roomId) {
-  const room = rooms.get(roomId);
+async function scheduleRoomCleanup(roomId) {
+  const room = await storage.getRoom(roomId);
   if (!room) return;
 
   // Clear any existing cleanup timer
-  if (room.cleanupTimer) {
-    clearTimeout(room.cleanupTimer);
+  const existingTimer = cleanupTimers.get(roomId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
   }
 
-  room.cleanupTimer = setTimeout(() => {
-    const currentRoom = rooms.get(roomId);
+  const timer = setTimeout(async () => {
+    const currentRoom = await storage.getRoom(roomId);
     // Only delete if room still has no host
     if (currentRoom && !currentRoom.hostPeerId) {
       // Notify remaining members the room is closing
-      for (const memberId of currentRoom.members) {
+      const members = await storage.getRoomMembers(roomId);
+      for (const memberId of members) {
         sendToPeer(memberId, { type: 'room-closed', roomId, reason: 'Host did not return' });
       }
-      rooms.delete(roomId);
+      await storage.deleteRoom(roomId);
+      hostWsConnections.delete(roomId);
+      cleanupTimers.delete(roomId);
       console.log(`Room ${roomId} deleted after cleanup timeout (no host claimed)`);
     }
   }, ROOM_CLEANUP_DELAY);
+
+  cleanupTimers.set(roomId, timer);
 }
 
 wss.on('connection', (ws, req) => {
@@ -322,7 +323,7 @@ wss.on('connection', (ws, req) => {
   let peerId = null;
   let sessionToken = null;
 
-  ws.on('message', (data) => {
+  ws.on('message', async (data) => {
     let message;
     try {
       message = JSON.parse(data);
@@ -352,25 +353,26 @@ wss.on('connection', (ws, req) => {
       }
 
       // Check for existing session
-      const existingSession = sessions.get(sessionToken);
+      const existingSession = await storage.getSession(sessionToken);
       const now = Date.now();
 
-      if (existingSession && (now - existingSession.lastSeen) < SESSION_EXPIRY) {
+      if (existingSession && (now - existingSession.lastSeen) < SESSION_EXPIRY_SECONDS * 1000) {
         // Restore existing session
         peerId = existingSession.peerId;
         const previousRoomId = existingSession.roomId;
 
         // Update session
-        existingSession.lastSeen = now;
+        await storage.updateSessionLastSeen(sessionToken);
 
         // Check if old peer connection exists and close it
-        const oldPeer = peers.get(peerId);
-        if (oldPeer && oldPeer.ws !== ws) {
-          oldPeer.ws.close();
+        const oldWs = wsConnections.get(peerId);
+        if (oldWs && oldWs !== ws) {
+          oldWs.close();
         }
 
         // Register peer with restored ID
-        peers.set(peerId, { ws, roomId: previousRoomId, ip, sessionToken });
+        wsConnections.set(peerId, ws);
+        await storage.setPeer(peerId, { roomId: previousRoomId, ip, sessionToken });
 
         console.log(`Session restored: ${peerId.substring(0, 8)}... (token: ${sessionToken.substring(0, 8)}...)`);
 
@@ -384,23 +386,26 @@ wss.on('connection', (ws, req) => {
 
         // If peer was in a room, restore room membership
         if (previousRoomId) {
-          const room = rooms.get(previousRoomId);
+          const room = await storage.getRoom(previousRoomId);
           if (room) {
+            const members = await storage.getRoomMembers(previousRoomId);
             // Re-add to members if they were a member
-            if (!room.members.has(peerId) && room.hostPeerId !== peerId) {
-              room.members.add(peerId);
+            if (!members.includes(peerId) && room.hostPeerId !== peerId) {
+              await storage.addRoomMember(previousRoomId, peerId);
             }
             // If they were the host and room is waiting for host, restore
             if (!room.hostPeerId) {
-              room.hostPeerId = peerId;
-              room.hostWs = ws;
-              if (room.cleanupTimer) {
-                clearTimeout(room.cleanupTimer);
-                room.cleanupTimer = null;
+              await storage.setRoom(previousRoomId, { hostPeerId: peerId });
+              hostWsConnections.set(previousRoomId, ws);
+              const existingTimer = cleanupTimers.get(previousRoomId);
+              if (existingTimer) {
+                clearTimeout(existingTimer);
+                cleanupTimers.delete(previousRoomId);
               }
               console.log(`Host restored for room ${previousRoomId}`);
               // Notify members that host is back
-              for (const memberId of room.members) {
+              const currentMembers = await storage.getRoomMembers(previousRoomId);
+              for (const memberId of currentMembers) {
                 sendToPeer(memberId, { type: 'host-reconnected', roomId: previousRoomId, hostPeerId: peerId });
               }
             }
@@ -409,8 +414,9 @@ wss.on('connection', (ws, req) => {
       } else {
         // Create new session
         peerId = generatePeerId();
-        sessions.set(sessionToken, { peerId, roomId: null, lastSeen: now });
-        peers.set(peerId, { ws, roomId: null, ip, sessionToken });
+        await storage.setSession(sessionToken, { peerId, roomId: null, lastSeen: now });
+        wsConnections.set(peerId, ws);
+        await storage.setPeer(peerId, { roomId: null, ip, sessionToken });
 
         console.log(`New session: ${peerId.substring(0, 8)}... (token: ${sessionToken.substring(0, 8)}...)`);
 
@@ -427,10 +433,7 @@ wss.on('connection', (ws, req) => {
 
     // Update session lastSeen on any message (acts as heartbeat)
     if (sessionToken) {
-      const session = sessions.get(sessionToken);
-      if (session) {
-        session.lastSeen = Date.now();
-      }
+      await storage.updateSessionLastSeen(sessionToken);
     }
 
     // Handle heartbeat message
@@ -439,7 +442,7 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
-    const peer = peers.get(peerId);
+    const peer = await storage.getPeer(peerId);
 
     switch (message.type) {
       // Room discovery: check if room exists and get host info
@@ -451,7 +454,7 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        const room = rooms.get(roomId);
+        const room = await storage.getRoom(roomId);
 
         if (room) {
           sendTo(ws, {
@@ -480,25 +483,26 @@ wss.on('connection', (ws, req) => {
         }
 
         // Check if room already has an active host
-        const existingRoom = rooms.get(roomId);
-        if (existingRoom && peers.has(existingRoom.hostPeerId)) {
+        const existingRoom = await storage.getRoom(roomId);
+        if (existingRoom && await storage.hasPeer(existingRoom.hostPeerId)) {
           sendTo(ws, { type: 'register-host-failed', roomId, reason: 'Room already has a host' });
           return;
         }
 
         // Clear any pending cleanup timer if room exists
-        if (existingRoom && existingRoom.cleanupTimer) {
-          clearTimeout(existingRoom.cleanupTimer);
+        const existingTimer = cleanupTimers.get(roomId);
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+          cleanupTimers.delete(roomId);
         }
 
-        rooms.set(roomId, {
+        await storage.setRoom(roomId, {
           hostPeerId: peerId,
-          hostWs: ws,
-          members: new Set(),
-          cleanupTimer: null
+          createdAt: Date.now()
         });
-        peer.roomId = roomId;
-        updateSessionRoom(sessionToken, roomId);
+        hostWsConnections.set(roomId, ws);
+        await storage.setPeer(peerId, { ...peer, roomId });
+        await storage.updateSessionRoom(sessionToken, roomId);
 
         sendTo(ws, { type: 'register-host-success', roomId });
         console.log(`Room ${roomId} created with host ${peerId.substring(0, 8)}...`);
@@ -514,25 +518,24 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        const room = rooms.get(roomId);
+        const room = await storage.getRoom(roomId);
 
         // Allow claiming if room doesn't exist or has no active host
-        if (!room || !peers.has(room.hostPeerId)) {
+        if (!room || !await storage.hasPeer(room.hostPeerId)) {
           // Clear any pending cleanup timer
-          if (room && room.cleanupTimer) {
-            clearTimeout(room.cleanupTimer);
+          const existingTimer = cleanupTimers.get(roomId);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+            cleanupTimers.delete(roomId);
           }
 
-          // Preserve members list if room exists, otherwise create new
-          const members = room ? room.members : new Set();
-          rooms.set(roomId, {
+          await storage.setRoom(roomId, {
             hostPeerId: peerId,
-            hostWs: ws,
-            members,
-            cleanupTimer: null
+            createdAt: room ? room.createdAt : Date.now()
           });
-          peer.roomId = roomId;
-          updateSessionRoom(sessionToken, roomId);
+          hostWsConnections.set(roomId, ws);
+          await storage.setPeer(peerId, { ...peer, roomId });
+          await storage.updateSessionRoom(sessionToken, roomId);
           sendTo(ws, { type: 'claim-host-success', roomId });
           console.log(`Room ${roomId} host migrated to ${peerId.substring(0, 8)}...`);
         } else {
@@ -550,7 +553,7 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        const room = rooms.get(roomId);
+        const room = await storage.getRoom(roomId);
 
         if (!room) {
           sendTo(ws, { type: 'join-room-failed', roomId, reason: 'Room does not exist' });
@@ -558,14 +561,14 @@ wss.on('connection', (ws, req) => {
         }
 
         // Check if host is still connected
-        if (!peers.has(room.hostPeerId)) {
+        if (!await storage.hasPeer(room.hostPeerId)) {
           sendTo(ws, { type: 'join-room-failed', roomId, reason: 'Room host is disconnected' });
           return;
         }
 
-        peer.roomId = roomId;
-        room.members.add(peerId);
-        updateSessionRoom(sessionToken, roomId);
+        await storage.setPeer(peerId, { ...peer, roomId });
+        await storage.addRoomMember(roomId, peerId);
+        await storage.updateSessionRoom(sessionToken, roomId);
 
         // Tell the peer who the host is so they can initiate WebRTC
         sendTo(ws, {
@@ -575,7 +578,8 @@ wss.on('connection', (ws, req) => {
         });
 
         // Notify host that a peer wants to connect
-        sendTo(room.hostWs, {
+        const hostWs = hostWsConnections.get(roomId);
+        sendTo(hostWs, {
           type: 'peer-connecting',
           peerId
         });
@@ -596,7 +600,7 @@ wss.on('connection', (ws, req) => {
         }
 
         // Verify target peer exists
-        if (!peers.has(targetPeerId)) {
+        if (!await storage.hasPeer(targetPeerId)) {
           sendError(ws, 'peer-not-found', 'Target peer not found');
           return;
         }
@@ -610,28 +614,29 @@ wss.on('connection', (ws, req) => {
 
       // Leave room
       case 'leave-room': {
-        if (peer.roomId) {
-          const room = rooms.get(peer.roomId);
+        if (peer && peer.roomId) {
+          const room = await storage.getRoom(peer.roomId);
           const roomId = peer.roomId;
 
           if (room) {
             if (room.hostPeerId === peerId) {
               // Host is leaving - notify all members and start cleanup timer
-              for (const memberId of room.members) {
+              const members = await storage.getRoomMembers(roomId);
+              for (const memberId of members) {
                 sendToPeer(memberId, { type: 'host-disconnected', roomId });
               }
-              room.hostPeerId = null;
-              room.hostWs = null;
+              await storage.setRoom(roomId, { hostPeerId: null });
+              hostWsConnections.delete(roomId);
               scheduleRoomCleanup(roomId);
-              console.log(`Room ${roomId} host left, notified ${room.members.size} members`);
+              console.log(`Room ${roomId} host left, notified ${members.length} members`);
             } else {
               // Member is leaving - just remove from members set
-              room.members.delete(peerId);
+              await storage.removeRoomMember(roomId, peerId);
             }
           }
 
-          peer.roomId = null;
-          updateSessionRoom(sessionToken, null);
+          await storage.setPeer(peerId, { ...peer, roomId: null });
+          await storage.updateSessionRoom(sessionToken, null);
         }
         break;
       }
@@ -642,32 +647,33 @@ wss.on('connection', (ws, req) => {
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', async () => {
     if (!peerId) {
       // Connection closed before hello was received
       untrackConnection(ip, ws);
       return;
     }
 
-    const peer = peers.get(peerId);
+    const peer = await storage.getPeer(peerId);
 
     if (peer) {
       untrackConnection(peer.ip, ws);
 
       if (peer.roomId) {
-        const room = rooms.get(peer.roomId);
+        const room = await storage.getRoom(peer.roomId);
         const roomId = peer.roomId;
 
         if (room) {
           if (room.hostPeerId === peerId) {
             // Host disconnected - notify all members and start cleanup timer
-            for (const memberId of room.members) {
+            const members = await storage.getRoomMembers(roomId);
+            for (const memberId of members) {
               sendToPeer(memberId, { type: 'host-disconnected', roomId });
             }
-            room.hostPeerId = null;
-            room.hostWs = null;
+            await storage.setRoom(roomId, { hostPeerId: null });
+            hostWsConnections.delete(roomId);
             scheduleRoomCleanup(roomId);
-            console.log(`Room ${roomId} host disconnected, notified ${room.members.size} members, cleanup in ${ROOM_CLEANUP_DELAY / 1000}s`);
+            console.log(`Room ${roomId} host disconnected, notified ${members.length} members, cleanup in ${ROOM_CLEANUP_DELAY / 1000}s`);
           } else {
             // Member disconnected - keep in members set for potential reconnection
             // They will be removed when session expires
@@ -681,12 +687,13 @@ wss.on('connection', (ws, req) => {
     }
 
     messageRates.delete(peerId);
-    peers.delete(peerId);
+    wsConnections.delete(peerId);
+    await storage.deletePeer(peerId);
     console.log(`Peer disconnected: ${peerId.substring(0, 8)}...`);
   });
 
   ws.on('error', (error) => {
-    console.error(`WebSocket error for peer ${peerId.substring(0, 8)}...:`, error.message);
+    console.error(`WebSocket error for peer ${peerId ? peerId.substring(0, 8) + '...' : 'unknown'}:`, error.message);
   });
 });
 
@@ -700,39 +707,47 @@ setInterval(() => {
   }
 }, 60000);
 
-// Cleanup expired sessions periodically
-setInterval(() => {
-  const now = Date.now();
-  let expiredCount = 0;
+// Cleanup expired sessions periodically (for memory storage; Redis uses TTL)
+setInterval(async () => {
+  try {
+    const expired = await storage.cleanupExpiredSessions();
 
-  for (const [token, session] of sessions) {
-    if (now - session.lastSeen > SESSION_EXPIRY) {
-      // Clean up any room membership for this session
+    // Clean up any room membership for expired sessions
+    for (const { session } of expired) {
       if (session.roomId) {
-        const room = rooms.get(session.roomId);
-        if (room) {
-          room.members.delete(session.peerId);
-        }
+        await storage.removeRoomMember(session.roomId, session.peerId);
       }
-      sessions.delete(token);
-      expiredCount++;
     }
-  }
 
-  if (expiredCount > 0) {
-    console.log(`Cleaned up ${expiredCount} expired session(s)`);
+    if (expired.length > 0) {
+      console.log(`Cleaned up ${expired.length} expired session(s)`);
+    }
+  } catch (err) {
+    console.error('Error cleaning up sessions:', err.message);
   }
-}, SESSION_CLEANUP_INTERVAL);
+}, 60000);
 
-server.listen(PORT, () => {
-  console.log(`DiceBox server running on http://localhost:${PORT}`);
-  console.log(`Minimal ICE broker ready (host-based rooms)`);
+// Start server
+async function start() {
+  // Initialize storage
+  storage = createStorage();
+  await storage.connect();
 
-  if (TURN_CONFIG.urls) {
-    const mode = TURN_CONFIG.secret ? 'time-limited' : 'static';
-    console.log(`TURN servers configured (${mode} credentials): ${TURN_CONFIG.urls.join(', ')}`);
-    console.log(`TURN credentials endpoint: /api/turn-credentials`);
-  } else {
-    console.log('TURN not configured (STUN only). Set TURN_URL environment variable to enable.');
-  }
+  server.listen(PORT, () => {
+    console.log(`DiceBox server running on http://localhost:${PORT}`);
+    console.log(`Minimal ICE broker ready (host-based rooms)`);
+
+    if (TURN_CONFIG.urls) {
+      const mode = TURN_CONFIG.secret ? 'time-limited' : 'static';
+      console.log(`TURN servers configured (${mode} credentials): ${TURN_CONFIG.urls.join(', ')}`);
+      console.log(`TURN credentials endpoint: /api/turn-credentials`);
+    } else {
+      console.log('TURN not configured (STUN only). Set TURN_URL environment variable to enable.');
+    }
+  });
+}
+
+start().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });

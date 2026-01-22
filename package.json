@@ -12,6 +12,7 @@
   "keywords": ["dice", "webrtc", "web-components", "p2p"],
   "license": "MIT",
   "dependencies": {
+    "redis": "^4.6.13",
     "ws": "^8.16.0"
   },
   "devDependencies": {
