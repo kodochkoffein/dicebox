@@ -134,7 +134,6 @@ class DiceBoxApp {
       const setsHeld = meshState.getSetsHeldByPeer(peerId);
       for (const setId of setsHeld) {
         meshState.clearHolder(setId);
-        this.diceState.clearHolder(setId);
       }
       this.updateDiceRollerState();
     });
@@ -287,15 +286,8 @@ class DiceBoxApp {
     // Load the state
     meshState.loadSnapshot(state);
 
-    // Also update dice state manager
+    // Update dice settings
     this.diceState.setSettings(state.diceConfig);
-    if (state.holders) {
-      const holders = this.diceState.getHolders();
-      holders.clear();
-      for (const [setId, holder] of state.holders) {
-        holders.set(setId, holder);
-      }
-    }
 
     // Now enter the room UI
     this.enterRoom();
@@ -348,7 +340,6 @@ class DiceBoxApp {
     // Add to state
     meshState.addRoll(roll);
     meshState.clearAllHolders();
-    this.diceState.clearAllHolders();
 
     // Convert setResults to rollResults format for display
     const rollResults = {};
@@ -373,8 +364,6 @@ class DiceBoxApp {
 
     // Set holder in state
     meshState.setHolder(setId, peerId, username);
-    this.diceState.setHolder(setId, peerId, username);
-
     this.updateDiceRollerState();
   }
 
@@ -384,13 +373,11 @@ class DiceBoxApp {
     // Clear holder
     if (setId) {
       meshState.clearHolder(setId);
-      this.diceState.clearHolder(setId);
     } else {
       // Clear all sets held by this peer
       const setsHeld = meshState.getSetsHeldByPeer(peerId);
       for (const heldSetId of setsHeld) {
         meshState.clearHolder(heldSetId);
-        this.diceState.clearHolder(heldSetId);
       }
     }
 
@@ -409,7 +396,6 @@ class DiceBoxApp {
       const setsHeld = meshState.getSetsHeldByPeer(peerId);
       for (const setId of setsHeld) {
         meshState.clearHolder(setId);
-        this.diceState.clearHolder(setId);
 
         // Broadcast that the dice was dropped
         this.messageRouter.broadcast({
@@ -454,13 +440,6 @@ class DiceBoxApp {
     const meshState = this.roomManager.getMeshState();
     this.diceState.setSettings(meshState.getDiceConfig());
 
-    // Load holders
-    const holders = this.diceState.getHolders();
-    holders.clear();
-    for (const [setId, holder] of meshState.getHolders()) {
-      holders.set(setId, holder);
-    }
-
     this.updateDiceRollerState();
 
     console.log(`Entered room ${this.roomManager.roomId} as ${this.roomManager.username}`);
@@ -482,8 +461,6 @@ class DiceBoxApp {
 
     // Grab locally
     if (meshState.tryGrab(setId, myId, this.roomManager.username)) {
-      this.diceState.setHolder(setId, myId, this.roomManager.username);
-
       // Broadcast to all peers
       this.messageRouter.broadcast({
         type: MSG.DICE_GRAB,
@@ -498,15 +475,14 @@ class DiceBoxApp {
 
   handleLocalDiceDrop() {
     const myId = this.connectionManager.getEffectiveId();
-
-    if (!this.diceState.isPeerHolding(myId)) return;
-
     const meshState = this.roomManager.getMeshState();
+
+    if (!meshState.isPeerHolding(myId)) return;
+
     const setsToRelease = meshState.getSetsHeldByPeer(myId);
 
     for (const setId of setsToRelease) {
       meshState.clearHolder(setId);
-      this.diceState.clearHolder(setId);
 
       // Broadcast to all peers
       this.messageRouter.broadcast({
@@ -544,7 +520,6 @@ class DiceBoxApp {
 
     // Clear holders
     meshState.clearAllHolders();
-    this.diceState.clearAllHolders();
 
     const roll = {
       setResults,
@@ -573,8 +548,9 @@ class DiceBoxApp {
   updateDiceRollerState() {
     if (!this.diceRoller) return;
 
+    const meshState = this.roomManager.getMeshState();
     const diceSettings = this.diceState.getSettings();
-    const holders = this.diceState.getHolders();
+    const holders = meshState.getHolders();
 
     this.diceRoller.setConfig({
       diceSets: diceSettings.diceSets,
