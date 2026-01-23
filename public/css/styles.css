@@ -55,12 +55,6 @@ header .header-title-row {
   gap: 6px;
 }
 
-header .host-crown {
-  color: var(--warning);
-  display: flex;
-  align-items: center;
-}
-
 header .header-right {
   position: absolute;
   top: 0;
@@ -99,23 +93,6 @@ header .room-info .room-id span {
   color: var(--secondary-color);
   font-weight: 600;
   letter-spacing: 0.05em;
-}
-
-header .btn-settings {
-  background: transparent;
-  padding: 8px;
-  font-size: 0.9rem;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-}
-
-header .btn-settings:hover {
-  background: var(--surface-light);
-  color: var(--primary-color);
-  transform: none;
 }
 
 header .btn-leave {
