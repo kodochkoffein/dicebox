@@ -268,12 +268,10 @@ export class WebRTCManager extends EventTarget {
 
     // Get current ICE servers (STUN + TURN if configured)
     const iceServers = this.getIceServers();
+    console.log(`Creating RTCPeerConnection with ${iceServers.length} ICE servers`);
 
     const pc = new RTCPeerConnection({
-      iceServers,
-      // Prefer relay (TURN) if available for more reliable connections
-      // Change to 'all' if you want to try direct connections first
-      iceTransportPolicy: this.hasTurnServers() ? 'all' : 'all'
+      iceServers
     });
 
     this.peerConnections.set(peerId, pc);
@@ -483,8 +481,9 @@ export class WebRTCManager extends EventTarget {
     }
 
     try {
-      console.log(`Adding ICE candidate for ${peerId} directly`);
-      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      console.log(`Adding ICE candidate for ${peerId} directly:`, JSON.stringify(candidate));
+      // Pass candidate directly - modern browsers handle plain objects
+      await pc.addIceCandidate(candidate);
     } catch (e) {
       console.error('Error adding ICE candidate:', e);
     }
@@ -505,8 +504,9 @@ export class WebRTCManager extends EventTarget {
 
     for (const candidate of pending) {
       try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log(`Applied buffered candidate for ${peerId}`);
+        console.log(`Applying buffered candidate for ${peerId}:`, JSON.stringify(candidate));
+        // Pass candidate directly - modern browsers handle plain objects
+        await pc.addIceCandidate(candidate);
       } catch (e) {
         console.error('Error adding buffered ICE candidate:', e);
       }
