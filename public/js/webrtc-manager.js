@@ -254,8 +254,12 @@ export class WebRTCManager extends EventTarget {
       this.closePeerConnection(peerId);
     }
 
-    // Initialize pending candidates buffer for this peer
-    this.pendingCandidates.set(peerId, []);
+    // Initialize pending candidates buffer for this peer (preserve existing if any)
+    // This is critical: ICE candidates may arrive before the offer/answer,
+    // so we must not clear already-buffered candidates
+    if (!this.pendingCandidates.has(peerId)) {
+      this.pendingCandidates.set(peerId, []);
+    }
 
     // Get current ICE servers (STUN + TURN if configured)
     const iceServers = this.getIceServers();
