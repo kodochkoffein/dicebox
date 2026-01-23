@@ -268,10 +268,12 @@ export class WebRTCManager extends EventTarget {
 
     // Get current ICE servers (STUN + TURN if configured)
     const iceServers = this.getIceServers();
-    console.log(`Creating RTCPeerConnection with ${iceServers.length} ICE servers`);
+    console.log(`Creating RTCPeerConnection with ${iceServers.length} ICE servers:`, JSON.stringify(iceServers.slice(0, 2)));
 
     const pc = new RTCPeerConnection({
-      iceServers
+      iceServers,
+      // Explicitly allow all candidate types
+      iceCandidatePoolSize: 0
     });
 
     this.peerConnections.set(peerId, pc);
@@ -429,10 +431,12 @@ export class WebRTCManager extends EventTarget {
 
   async handleOffer(peerId, offer) {
     console.log(`handleOffer from ${peerId}: creating peer connection...`);
+    console.log(`handleOffer: offer type=${offer.type}, sdp length=${offer.sdp?.length || 0}`);
     const pc = await this.createPeerConnection(peerId, false);
 
     console.log(`handleOffer from ${peerId}: setting remote description...`);
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    // Pass offer directly - modern browsers don't need RTCSessionDescription wrapper
+    await pc.setRemoteDescription(offer);
 
     // Apply any buffered ICE candidates now that remote description is set
     console.log(`handleOffer from ${peerId}: applying pending candidates...`);
@@ -448,9 +452,11 @@ export class WebRTCManager extends EventTarget {
 
   async handleAnswer(peerId, answer) {
     console.log(`handleAnswer from ${peerId}: setting remote description...`);
+    console.log(`handleAnswer: answer type=${answer.type}, sdp length=${answer.sdp?.length || 0}`);
     const pc = this.peerConnections.get(peerId);
     if (pc) {
-      await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      // Pass answer directly - modern browsers don't need RTCSessionDescription wrapper
+      await pc.setRemoteDescription(answer);
 
       // Apply any buffered ICE candidates now that remote description is set
       console.log(`handleAnswer from ${peerId}: applying pending candidates...`);
