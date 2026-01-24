@@ -1281,3 +1281,39 @@ dice-roller .locked-count {
   padding: 2px 6px;
   border-radius: 4px;
 }
+
+dice-roller .locking-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+dice-roller .roll-again-btn {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+dice-roller .roll-again-btn:hover {
+  background: var(--primary-hover);
+}
+
+dice-roller .roll-again-btn:active {
+  transform: scale(0.98);
+}
+
+dice-roller .dice-set.locking-mode {
+  cursor: default;
+}
+
+dice-roller .dice-set.locking-mode .dice-display {
+  min-height: auto;
+}

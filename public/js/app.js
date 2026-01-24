@@ -310,7 +310,11 @@ class DiceBoxApp {
 
     // Add to state
     meshState.addRoll(roll);
-    meshState.clearAllHolders();
+
+    // Only clear holders if keepHolders is not set (locking not enabled)
+    if (!roll.keepHolders) {
+      meshState.clearAllHolders();
+    }
 
     // Convert setResults to rollResults format for display
     const rollResults = {};
@@ -328,8 +332,12 @@ class DiceBoxApp {
         meshState.clearLocksForSet(sr.setId);
       }
 
-      // Clear holder rolled flag (holders are cleared)
-      meshState.clearHolderRolled(sr.setId);
+      // Mark that holder has rolled (for locking) if keeping holders
+      if (roll.keepHolders) {
+        meshState.setHolderHasRolled(sr.setId);
+      } else {
+        meshState.clearHolderRolled(sr.setId);
+      }
     }
 
     // Update UI
@@ -554,6 +562,7 @@ class DiceBoxApp {
 
     // Build set results with holder info
     const diceConfig = meshState.getDiceConfig();
+    const allowLocking = diceConfig?.allowLocking || false;
     const setResults = [];
 
     for (const set of diceConfig.diceSets) {
@@ -582,15 +591,19 @@ class DiceBoxApp {
       }
     }
 
-    // Clear holders
-    meshState.clearAllHolders();
+    // Only clear holders if locking is NOT enabled
+    // When locking is enabled, users keep holding to lock/unlock dice
+    if (!allowLocking) {
+      meshState.clearAllHolders();
+    }
 
     const roll = {
       setResults,
       total,
       rollId,
       timestamp: Date.now(),
-      lockedDice: lockedDice || []
+      lockedDice: lockedDice || [],
+      keepHolders: allowLocking
     };
 
     // Add to local state
