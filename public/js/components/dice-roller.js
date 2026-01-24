@@ -27,7 +27,6 @@ class DiceRoller extends HTMLElement {
     this.allowLocking = false;
     this.lockedDice = new Map();      // setId -> Map<dieIndex, value>
     this.holderHasRolled = new Map(); // setId -> boolean
-    this._lockActionTime = 0;         // Debounce for lock vs roll on mobile
   }
 
   connectedCallback() {
@@ -88,42 +87,11 @@ class DiceRoller extends HTMLElement {
     const borderColor = isHeld ? set.color : 'transparent';
     const pipColor = getPipColor(set.color);
 
-    // When all dice are held
+    // When all dice are held, show dice with lock state and ready-to-roll overlay
     if (allHeld) {
-      const lockedCount = lockedMap.size;
-
-      // If holder has rolled and locking is enabled, show lockable dice with roll button
-      if (canLock && hasValues) {
-        return `
-          <div class="dice-set card held ${iAmHolder ? 'my-hold' : 'other-hold'} ${hasLocked ? 'has-locked' : ''} locking-mode"
-               data-set-id="${set.id}"
-               style="--set-color: ${set.color}; --set-bg: ${bgColor}; border-color: ${borderColor}">
-            <div class="holder-info">
-              <span class="holder-name">You</span>
-              ${hasLocked ? `<span class="locked-count">${lockedCount} locked</span>` : ''}
-            </div>
-            <div class="dice-display">
-              ${values.map((v, i) => {
-                const isLocked = lockedMap.has(i);
-                return `<div class="die-wrapper">
-                  <div class="die lockable ${isLocked ? 'locked' : ''}"
-                       data-die-index="${i}"
-                       style="${this.getRandomDiceTransform()}">${getDiceSvg(v, pipColor)}</div>
-                  ${isLocked ? '<div class="lock-indicator">🔒</div>' : ''}
-                </div>`;
-              }).join('')}
-            </div>
-            <div class="locking-controls">
-              <div class="lock-hint">Tap dice to lock/unlock</div>
-              <button class="roll-again-btn" data-set-id="${set.id}">Roll Again</button>
-            </div>
-          </div>
-        `;
-      }
-
-      // Default: show "Click to roll" overlay
       const hintText = iAmHolder ? 'Click to roll' : `${holder.username} is about to roll`;
       const hintClass = iAmHolder ? '' : 'waiting';
+      const lockedCount = lockedMap.size;
 
       return `
         <div class="dice-set card held ready-to-roll ${iAmHolder ? 'my-hold' : 'other-hold'} ${hasLocked ? 'has-locked' : ''}"
@@ -229,21 +197,11 @@ class DiceRoller extends HTMLElement {
       });
     });
 
-    // Handle "Roll Again" button clicks
-    this.querySelectorAll('.roll-again-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (!this.isRolling && this.allSetsHeld() && this.iAmHoldingAny()) {
-          this.roll();
-        }
-      });
-    });
-
     // Handle dice set clicks
     this.querySelectorAll('.dice-set').forEach(setEl => {
       setEl.addEventListener('click', (e) => {
-        // Don't trigger set click if clicking on a lockable die or roll button
-        if (e.target.closest('.die.lockable') || e.target.closest('.roll-again-btn')) return;
+        // Don't trigger set click if clicking on a lockable die
+        if (e.target.closest('.die.lockable')) return;
         const setId = setEl.dataset.setId;
         this.handleSetClick(setId);
       });
@@ -258,9 +216,6 @@ class DiceRoller extends HTMLElement {
     const holderRolled = this.holderHasRolled.get(setId) || false;
 
     if (!this.allowLocking || !iAmHolder || !holderRolled) return;
-
-    // Set debounce timestamp to prevent accidental roll on mobile
-    this._lockActionTime = Date.now();
 
     const lockedMap = this.lockedDice.get(setId) || new Map();
     const values = this.currentValues[setId] || [];
@@ -293,9 +248,6 @@ class DiceRoller extends HTMLElement {
 
   handleSetClick(setId) {
     if (this.isRolling) return;
-
-    // Debounce: don't roll if we just did a lock action (prevents mobile double-tap issues)
-    if (Date.now() - this._lockActionTime < 300) return;
 
     const holder = this.holders.get(setId);
     const isHeld = holder !== undefined;
