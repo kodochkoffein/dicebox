@@ -23,6 +23,7 @@ class RoomJoin extends HTMLElement {
     this._createMode = false;
     this._diceSets = [{ id: 'set-1', count: 2, color: '#ffffff' }];
     this._nextSetId = 2;
+    this._allowLocking = false;
   }
 
   // Render a die face - converts internal 0-5 value to 1-6 for display
@@ -55,6 +56,13 @@ class RoomJoin extends HTMLElement {
           <label>Dice Sets</label>
           <div class="dice-sets-config" id="dice-sets-config"></div>
           <button class="add-set-btn" id="add-set-btn">+ Add Set</button>
+          <div class="room-options">
+            <label class="checkbox-label">
+              <input type="checkbox" id="allow-locking">
+              <span class="checkbox-text">Allow dice locking</span>
+              <span class="checkbox-hint">Players can set aside dice between rolls</span>
+            </label>
+          </div>
         </div>
         <div class="join-buttons">
           <button class="btn-create" id="btn-create">Create Room</button>
@@ -150,6 +158,14 @@ class RoomJoin extends HTMLElement {
     const addSetBtn = this.querySelector('#add-set-btn');
     if (addSetBtn) {
       addSetBtn.addEventListener('click', () => this.addDiceSet());
+    }
+
+    const lockingCheckbox = this.querySelector('#allow-locking');
+    if (lockingCheckbox) {
+      lockingCheckbox.checked = this._allowLocking;
+      lockingCheckbox.addEventListener('change', (e) => {
+        this._allowLocking = e.target.checked;
+      });
     }
 
     // Delegate clicks for dice config controls
@@ -342,7 +358,10 @@ class RoomJoin extends HTMLElement {
         username,
         roomId,
         isHost: true,
-        diceConfig: { diceSets: [...this._diceSets] }
+        diceConfig: {
+          diceSets: [...this._diceSets],
+          allowLocking: this._allowLocking
+        }
       }
     }));
   }
