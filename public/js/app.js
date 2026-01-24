@@ -330,6 +330,9 @@ class DiceBoxApp {
 
       // Clear holder rolled flag (holders are cleared)
       meshState.clearHolderRolled(sr.setId);
+
+      // Set last roller
+      meshState.setLastRoller(sr.setId, sr.holderId, sr.holderUsername);
     }
 
     // Update UI
@@ -346,6 +349,9 @@ class DiceBoxApp {
 
   handleDiceGrabMsg(peerId, { setId, username, restoredLock }) {
     const meshState = this.roomManager.getMeshState();
+
+    // Clear last roller when someone grabs (they're taking over)
+    meshState.clearLastRoller(setId);
 
     // Clear existing locks when someone grabs
     meshState.clearLocksForSet(setId);
@@ -463,6 +469,9 @@ class DiceBoxApp {
 
     // Grab locally
     if (meshState.tryGrab(setId, myId, this.roomManager.username)) {
+      // Clear last roller (we're taking over)
+      meshState.clearLastRoller(setId);
+
       // Clear locks for this set (will be restored below if same user)
       meshState.clearLocksForSet(setId);
       meshState.clearHolderRolled(setId);
@@ -580,6 +589,9 @@ class DiceBoxApp {
       } else {
         meshState.clearLocksForSet(set.id);
       }
+
+      // Set last roller (for locking after dice are released)
+      meshState.setLastRoller(set.id, myId, this.roomManager.username);
     }
 
     // Clear holders
@@ -673,13 +685,23 @@ class DiceBoxApp {
       }
     }
 
+    // Prepare last roller info
+    const lastRoller = [];
+    for (const set of (diceConfig?.diceSets || [])) {
+      const roller = meshState.getLastRoller(set.id);
+      if (roller) {
+        lastRoller.push([set.id, roller]);
+      }
+    }
+
     this.diceRoller.setConfig({
       diceSets: diceConfig?.diceSets || [],
       holders: Array.from(holders.entries()),
       myPeerId: this.connectionManager.getEffectiveId(),
       allowLocking: diceConfig?.allowLocking || false,
       lockedDice,
-      holderHasRolled
+      holderHasRolled,
+      lastRoller
     });
 
     if (this.peerList && diceConfig) {

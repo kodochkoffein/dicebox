@@ -27,6 +27,7 @@ class DiceRoller extends HTMLElement {
     this.allowLocking = false;
     this.lockedDice = new Map();      // setId -> Map<dieIndex, value>
     this.holderHasRolled = new Map(); // setId -> boolean
+    this.lastRoller = new Map();      // setId -> { peerId, username }
   }
 
   connectedCallback() {
@@ -76,11 +77,17 @@ class DiceRoller extends HTMLElement {
     const allHeld = this.allSetsHeld();
     const canRoll = allHeld && this.iAmHoldingAny();
 
-    // Locking state
+    // Locking state - check if I'm the last roller (can lock even when not held)
     const lockedMap = this.lockedDice.get(set.id) || new Map();
     const hasLocked = lockedMap.size > 0;
     const holderRolled = this.holderHasRolled.get(set.id) || false;
-    const canLock = this.allowLocking && iAmHolder && holderRolled;
+    const lastRoller = this.lastRoller.get(set.id);
+    const iAmLastRoller = lastRoller && lastRoller.peerId === this.myPeerId;
+    // Can lock if: (I'm holder and have rolled) OR (dice not held and I'm last roller)
+    const canLock = this.allowLocking && (
+      (iAmHolder && holderRolled) ||
+      (!isHeld && iAmLastRoller && hasValues)
+    );
 
     // Generate a slightly lighter color for the background
     const bgColor = hexToRgba(set.color, 0.15);
@@ -124,8 +131,8 @@ class DiceRoller extends HTMLElement {
 
     // Not all held - show normal dice display
     const renderDice = () => {
-      if (hasValues && iAmHolder && canLock) {
-        // Show lockable dice for holder who has rolled
+      if (hasValues && canLock) {
+        // Show lockable dice (holder who has rolled, OR last roller with dice not held)
         return values.map((v, i) => {
           const isLocked = lockedMap.has(i);
           return `<div class="die-wrapper">
@@ -147,10 +154,14 @@ class DiceRoller extends HTMLElement {
           </div>`;
         }).join('');
       } else if (hasValues && !isHeld) {
-        // Not held, show last values
-        return values.map(v =>
-          `<div class="die-wrapper"><div class="die" style="${this.getRandomDiceTransform()}">${getDiceSvg(v, pipColor)}</div></div>`
-        ).join('');
+        // Not held and not last roller - show last values (not lockable)
+        return values.map((v, i) => {
+          const isLocked = lockedMap.has(i);
+          return `<div class="die-wrapper">
+            <div class="die ${isLocked ? 'locked' : ''}" style="${this.getRandomDiceTransform()}">${getDiceSvg(v, pipColor)}</div>
+            ${isLocked ? '<div class="lock-indicator">🔒</div>' : ''}
+          </div>`;
+        }).join('');
       } else {
         // Placeholder dice
         return Array(set.count).fill(0).map((_, i) => {
@@ -164,10 +175,21 @@ class DiceRoller extends HTMLElement {
       }
     };
 
-    const lockHint = canLock ? '<div class="lock-hint">Click dice to lock/unlock</div>' : '';
+    // Determine hints to show
+    let grabHint = '';
+    let lockHint = '';
+    if (!isHeld) {
+      if (canLock) {
+        lockHint = '<div class="lock-hint">Tap dice to lock/unlock, tap outside to grab</div>';
+      } else {
+        grabHint = '<div class="grab-hint">Click to grab</div>';
+      }
+    } else if (canLock) {
+      lockHint = '<div class="lock-hint">Click dice to lock/unlock</div>';
+    }
 
     return `
-      <div class="dice-set card ${isHeld ? 'held' : ''} ${iAmHolder ? 'my-hold' : ''} ${hasLocked ? 'has-locked' : ''}"
+      <div class="dice-set card ${isHeld ? 'held' : ''} ${iAmHolder ? 'my-hold' : ''} ${hasLocked ? 'has-locked' : ''} ${canLock && !isHeld ? 'last-roller' : ''}"
            data-set-id="${set.id}"
            style="--set-color: ${set.color}; --set-bg: ${bgColor}; border-color: ${borderColor}">
         ${isHeld ? `
@@ -179,7 +201,7 @@ class DiceRoller extends HTMLElement {
         <div class="dice-display">
           ${renderDice()}
         </div>
-        ${!isHeld ? '<div class="grab-hint">Click to grab</div>' : ''}
+        ${grabHint}
         ${lockHint}
       </div>
     `;
@@ -212,13 +234,23 @@ class DiceRoller extends HTMLElement {
     if (this.isRolling) return;
 
     const holder = this.holders.get(setId);
-    const iAmHolder = holder && holder.peerId === this.myPeerId;
+    const isHeld = holder !== undefined;
+    const iAmHolder = isHeld && holder.peerId === this.myPeerId;
     const holderRolled = this.holderHasRolled.get(setId) || false;
+    const lastRoller = this.lastRoller.get(setId);
+    const iAmLastRoller = lastRoller && lastRoller.peerId === this.myPeerId;
+    const values = this.currentValues[setId] || [];
+    const hasValues = values.length > 0;
 
-    if (!this.allowLocking || !iAmHolder || !holderRolled) return;
+    // Can lock if: (I'm holder and have rolled) OR (dice not held and I'm last roller)
+    const canLock = this.allowLocking && (
+      (iAmHolder && holderRolled) ||
+      (!isHeld && iAmLastRoller && hasValues)
+    );
+
+    if (!canLock) return;
 
     const lockedMap = this.lockedDice.get(setId) || new Map();
-    const values = this.currentValues[setId] || [];
     const value = values[dieIndex];
 
     if (lockedMap.has(dieIndex)) {
@@ -397,7 +429,7 @@ class DiceRoller extends HTMLElement {
   }
 
   // External API
-  setConfig({ diceSets, holders, myPeerId, allowLocking, lockedDice, holderHasRolled }) {
+  setConfig({ diceSets, holders, myPeerId, allowLocking, lockedDice, holderHasRolled, lastRoller }) {
     const newDiceSets = diceSets || [{ id: 'set-1', count: 2, color: '#ffffff' }];
 
     // Clear currentValues for sets whose count has changed
@@ -445,6 +477,14 @@ class DiceRoller extends HTMLElement {
     if (holderHasRolled) {
       for (const [setId, hasRolled] of holderHasRolled) {
         this.holderHasRolled.set(setId, hasRolled);
+      }
+    }
+
+    // Set last roller state
+    this.lastRoller.clear();
+    if (lastRoller) {
+      for (const [setId, roller] of lastRoller) {
+        this.lastRoller.set(setId, roller);
       }
     }
 

@@ -16,6 +16,7 @@ export class MeshState extends EventTarget {
     this.lockedDice = new Map();      // setId -> { lockedIndices: Set<number>, values: Map<index, value> }
     this.holderHasRolled = new Map(); // setId -> boolean (has current holder rolled at least once?)
     this.savedDiceState = new Map();  // peerId -> Map<setId, { lockedIndices: number[], values: number[] }>
+    this.lastRoller = new Map();      // setId -> { peerId, username } - who last rolled this set
   }
 
   // === Peer Management ===
@@ -305,6 +306,34 @@ export class MeshState extends EventTarget {
     });
   }
 
+  /**
+   * Set the last roller for a set
+   */
+  setLastRoller(setId, peerId, username) {
+    this.lastRoller.set(setId, { peerId, username });
+  }
+
+  /**
+   * Get the last roller for a set
+   */
+  getLastRoller(setId) {
+    return this.lastRoller.get(setId) || null;
+  }
+
+  /**
+   * Clear last roller for a set (when someone else grabs or rolls)
+   */
+  clearLastRoller(setId) {
+    this.lastRoller.delete(setId);
+  }
+
+  /**
+   * Clear all last rollers
+   */
+  clearAllLastRollers() {
+    this.lastRoller.clear();
+  }
+
   // === State Snapshots ===
 
   /**
@@ -345,7 +374,8 @@ export class MeshState extends EventTarget {
       holders: Array.from(this.holders.entries()),
       lockedDice: lockedDiceSnapshot,
       holderHasRolled: Array.from(this.holderHasRolled.entries()),
-      savedDiceState: savedDiceSnapshot
+      savedDiceState: savedDiceSnapshot,
+      lastRoller: Array.from(this.lastRoller.entries())
     };
   }
 
@@ -414,6 +444,14 @@ export class MeshState extends EventTarget {
         });
       }
     }
+
+    // Load last roller state
+    this.lastRoller.clear();
+    if (snapshot.lastRoller) {
+      for (const [setId, roller] of snapshot.lastRoller) {
+        this.lastRoller.set(setId, roller);
+      }
+    }
   }
 
   // === Reset ===
@@ -427,5 +465,6 @@ export class MeshState extends EventTarget {
     this.lockedDice.clear();
     this.holderHasRolled.clear();
     this.savedDiceState.clear();
+    this.lastRoller.clear();
   }
 }
