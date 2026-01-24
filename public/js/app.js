@@ -45,7 +45,8 @@ class DiceBoxApp {
       .onMessage(MSG.PEER_LEFT, (peerId, msg) => this.handlePeerLeftMsg(peerId, msg))
       .onMessage(MSG.DICE_ROLL, (peerId, msg) => this.handleDiceRollMsg(peerId, msg))
       .onMessage(MSG.DICE_GRAB, (peerId, msg) => this.handleDiceGrabMsg(peerId, msg))
-      .onMessage(MSG.DICE_DROP, (peerId, msg) => this.handleDiceDropMsg(peerId, msg));
+      .onMessage(MSG.DICE_DROP, (peerId, msg) => this.handleDiceDropMsg(peerId, msg))
+      .onMessage(MSG.DICE_LOCK, (peerId, msg) => this.handleDiceLockMsg(peerId, msg));
   }
 
   // === MANAGER EVENTS SETUP ===
@@ -147,6 +148,10 @@ class DiceBoxApp {
 
     document.addEventListener('dice-dropped', () => {
       this.handleLocalDiceDrop();
+    });
+
+    document.addEventListener('dice-lock-changed', (e) => {
+      this.handleLocalDiceLock(e.detail);
     });
 
     // WebRTC events
@@ -311,11 +316,25 @@ class DiceBoxApp {
     const rollResults = {};
     for (const sr of (roll.setResults || [])) {
       rollResults[sr.setId] = sr.values;
+
+      // Clear saved states for this set (dice have been rolled by someone)
+      meshState.clearSavedStateForSet(sr.setId);
+
+      // Update lock state from roll
+      const lockInfo = roll.lockedDice?.find(l => l.setId === sr.setId);
+      if (lockInfo && lockInfo.lockedIndices.length > 0) {
+        meshState.setLockState(sr.setId, lockInfo.lockedIndices, lockInfo.values);
+      } else {
+        meshState.clearLocksForSet(sr.setId);
+      }
+
+      // Clear holder rolled flag (holders are cleared)
+      meshState.clearHolderRolled(sr.setId);
     }
 
     // Update UI
     if (this.diceRoller) {
-      this.diceRoller.showRoll(rollResults);
+      this.diceRoller.showRoll(rollResults, roll.lockedDice);
     }
 
     if (this.diceHistory) {
@@ -325,11 +344,22 @@ class DiceBoxApp {
     this.updateDiceRollerState();
   }
 
-  handleDiceGrabMsg(peerId, { setId, username }) {
+  handleDiceGrabMsg(peerId, { setId, username, restoredLock }) {
     const meshState = this.roomManager.getMeshState();
+
+    // Clear existing locks when someone grabs
+    meshState.clearLocksForSet(setId);
+    meshState.clearHolderRolled(setId);
 
     // Set holder in state
     meshState.setHolder(setId, peerId, username);
+
+    // Restore lock state if provided (same user picking up their dice)
+    if (restoredLock && restoredLock.lockedIndices && restoredLock.lockedIndices.length > 0) {
+      meshState.setLockState(setId, restoredLock.lockedIndices, restoredLock.values);
+      meshState.setHolderHasRolled(setId); // They had rolled before
+    }
+
     this.updateDiceRollerState();
   }
 
@@ -339,11 +369,14 @@ class DiceBoxApp {
     // Clear holder
     if (setId) {
       meshState.clearHolder(setId);
+      meshState.clearHolderRolled(setId);
+      // Note: Don't clear locks here - they may be restored if same user picks up
     } else {
       // Clear all sets held by this peer
       const setsHeld = meshState.getSetsHeldByPeer(peerId);
       for (const heldSetId of setsHeld) {
         meshState.clearHolder(heldSetId);
+        meshState.clearHolderRolled(heldSetId);
       }
     }
 
@@ -362,6 +395,8 @@ class DiceBoxApp {
       const setsHeld = meshState.getSetsHeldByPeer(peerId);
       for (const setId of setsHeld) {
         meshState.clearHolder(setId);
+        meshState.clearLocksForSet(setId);
+        meshState.clearHolderRolled(setId);
 
         // Broadcast that the dice was dropped
         this.messageRouter.broadcast({
@@ -420,15 +455,45 @@ class DiceBoxApp {
     }
 
     const myId = this.connectionManager.getEffectiveId();
+    const diceConfig = meshState.getDiceConfig();
+    const allowLocking = diceConfig?.allowLocking || false;
+
+    // Check if user has saved state to restore
+    const savedState = allowLocking ? meshState.getSavedDiceState(setId, myId) : null;
 
     // Grab locally
     if (meshState.tryGrab(setId, myId, this.roomManager.username)) {
+      // Clear locks for this set (will be restored below if same user)
+      meshState.clearLocksForSet(setId);
+      meshState.clearHolderRolled(setId);
+
+      // Restore saved state if same user picking up their dice
+      if (savedState) {
+        meshState.setLockState(setId, savedState.lockedIndices, savedState.values);
+        meshState.setHolderHasRolled(setId); // They had rolled before, so can continue locking
+
+        // Update dice roller current values with saved values
+        if (this.diceRoller) {
+          const currentVals = this.diceRoller.currentValues[setId] || [];
+          const newVals = [...currentVals];
+          for (let i = 0; i < savedState.lockedIndices.length; i++) {
+            const idx = savedState.lockedIndices[i];
+            newVals[idx] = savedState.values[i];
+          }
+          this.diceRoller.currentValues[setId] = newVals;
+        }
+      }
+
       // Broadcast to all peers
       this.messageRouter.broadcast({
         type: MSG.DICE_GRAB,
         setId,
         peerId: myId,
-        username: this.roomManager.username
+        username: this.roomManager.username,
+        restoredLock: savedState ? {
+          lockedIndices: savedState.lockedIndices,
+          values: savedState.values
+        } : null
       });
 
       this.updateDiceRollerState();
@@ -438,13 +503,31 @@ class DiceBoxApp {
   handleLocalDiceDrop() {
     const myId = this.connectionManager.getEffectiveId();
     const meshState = this.roomManager.getMeshState();
+    const diceConfig = meshState.getDiceConfig();
+    const allowLocking = diceConfig?.allowLocking || false;
 
     if (!meshState.isPeerHolding(myId)) return;
 
     const setsToRelease = meshState.getSetsHeldByPeer(myId);
 
     for (const setId of setsToRelease) {
+      // Save lock state before releasing (if locking is enabled)
+      if (allowLocking && this.diceRoller) {
+        const lockedMap = this.diceRoller.lockedDice.get(setId);
+        const currentValues = this.diceRoller.currentValues[setId] || [];
+
+        if (lockedMap && lockedMap.size > 0) {
+          const lockedIndices = [...lockedMap.keys()];
+          const lockedValues = lockedIndices.map(idx => lockedMap.get(idx));
+          meshState.saveDiceState(setId, myId, lockedIndices, currentValues);
+        } else if (meshState.hasHolderRolled(setId)) {
+          // Save current values even without locks if they've rolled
+          meshState.saveDiceState(setId, myId, [], currentValues);
+        }
+      }
+
       meshState.clearHolder(setId);
+      meshState.clearHolderRolled(setId);
 
       // Broadcast to all peers
       this.messageRouter.broadcast({
@@ -454,10 +537,15 @@ class DiceBoxApp {
       });
     }
 
+    // Clear local lock state in the dice roller
+    if (this.diceRoller) {
+      this.diceRoller.clearLocks();
+    }
+
     this.updateDiceRollerState();
   }
 
-  handleLocalDiceRoll({ rollResults, total, holders }) {
+  handleLocalDiceRoll({ rollResults, total, holders, lockedDice }) {
     const myId = this.connectionManager.getEffectiveId();
     const meshState = this.roomManager.getMeshState();
 
@@ -478,6 +566,20 @@ class DiceBoxApp {
         holderId: holder?.peerId || myId,
         holderUsername: holder?.username || this.roomManager.username
       });
+
+      // Mark that holder has rolled (for locking)
+      meshState.setHolderHasRolled(set.id);
+
+      // Clear saved states for all peers for this set (dice have been rolled)
+      meshState.clearSavedStateForSet(set.id);
+
+      // Update lock state in mesh state
+      const lockInfo = lockedDice?.find(l => l.setId === set.id);
+      if (lockInfo && lockInfo.lockedIndices.length > 0) {
+        meshState.setLockState(set.id, lockInfo.lockedIndices, lockInfo.values);
+      } else {
+        meshState.clearLocksForSet(set.id);
+      }
     }
 
     // Clear holders
@@ -487,7 +589,8 @@ class DiceBoxApp {
       setResults,
       total,
       rollId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      lockedDice: lockedDice || []
     };
 
     // Add to local state
@@ -507,6 +610,42 @@ class DiceBoxApp {
     this.updateDiceRollerState();
   }
 
+  handleLocalDiceLock({ setId, dieIndex, locked, value }) {
+    const meshState = this.roomManager.getMeshState();
+    const myId = this.connectionManager.getEffectiveId();
+
+    // Update mesh state
+    if (locked) {
+      meshState.lockDie(setId, dieIndex, value);
+    } else {
+      meshState.unlockDie(setId, dieIndex);
+    }
+
+    // Broadcast to all peers
+    this.messageRouter.broadcast({
+      type: MSG.DICE_LOCK,
+      setId,
+      dieIndex,
+      locked,
+      value,
+      peerId: myId
+    });
+  }
+
+  handleDiceLockMsg(peerId, { setId, dieIndex, locked, value }) {
+    const meshState = this.roomManager.getMeshState();
+
+    // Update mesh state
+    if (locked) {
+      meshState.lockDie(setId, dieIndex, value);
+    } else {
+      meshState.unlockDie(setId, dieIndex);
+    }
+
+    // Update dice roller UI
+    this.updateDiceRollerState();
+  }
+
   updateDiceRollerState() {
     if (!this.diceRoller) return;
 
@@ -514,10 +653,33 @@ class DiceBoxApp {
     const diceConfig = meshState.getDiceConfig();
     const holders = meshState.getHolders();
 
+    // Prepare locked dice info for dice roller
+    const lockedDice = [];
+    for (const set of (diceConfig?.diceSets || [])) {
+      const lock = meshState.getLockedDice(set.id);
+      if (lock) {
+        lockedDice.push([set.id, {
+          lockedIndices: [...lock.lockedIndices],
+          values: lock.values
+        }]);
+      }
+    }
+
+    // Prepare holder rolled state
+    const holderHasRolled = [];
+    for (const set of (diceConfig?.diceSets || [])) {
+      if (meshState.hasHolderRolled(set.id)) {
+        holderHasRolled.push([set.id, true]);
+      }
+    }
+
     this.diceRoller.setConfig({
       diceSets: diceConfig?.diceSets || [],
       holders: Array.from(holders.entries()),
-      myPeerId: this.connectionManager.getEffectiveId()
+      myPeerId: this.connectionManager.getEffectiveId(),
+      allowLocking: diceConfig?.allowLocking || false,
+      lockedDice,
+      holderHasRolled
     });
 
     if (this.peerList && diceConfig) {

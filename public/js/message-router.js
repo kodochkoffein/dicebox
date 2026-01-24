@@ -19,6 +19,7 @@ export const MSG = {
   DICE_ROLL: 'dice-roll',     // Broadcast dice roll result
   DICE_GRAB: 'dice-grab',     // Peer grabbed a dice set
   DICE_DROP: 'dice-drop',     // Peer dropped a dice set
+  DICE_LOCK: 'dice-lock',     // Peer locked/unlocked a die
 };
 
 export class MessageRouter extends EventTarget {
