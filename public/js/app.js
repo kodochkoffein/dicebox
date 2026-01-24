@@ -467,27 +467,50 @@ class DiceBoxApp {
     // Check if user has saved state to restore
     const savedState = allowLocking ? meshState.getSavedDiceState(setId, myId) : null;
 
+    // Check if user is the lastRoller (they may have locked dice after rolling)
+    const lastRoller = meshState.getLastRoller(setId);
+    const iAmLastRoller = lastRoller && lastRoller.peerId === myId;
+
+    // Save current locks if I'm lastRoller (before clearing)
+    const currentLocks = iAmLastRoller ? meshState.getLockedDice(setId) : null;
+
     // Grab locally
     if (meshState.tryGrab(setId, myId, this.roomManager.username)) {
-      // Clear last roller (we're taking over)
+      // Clear last roller (we're taking over as holder now)
       meshState.clearLastRoller(setId);
 
-      // Clear locks for this set (will be restored below if same user)
+      // Determine what lock state to use
+      let lockToRestore = null;
+
+      if (iAmLastRoller && currentLocks) {
+        // I was lastRoller and had locks - preserve them
+        lockToRestore = {
+          lockedIndices: [...currentLocks.lockedIndices],
+          values: Array.isArray(currentLocks.values)
+            ? [...currentLocks.values]
+            : [...currentLocks.values.values()]
+        };
+      } else if (savedState) {
+        // Restore from saved state (dropped dice scenario)
+        lockToRestore = savedState;
+      }
+
+      // Clear locks for this set (will be restored below if applicable)
       meshState.clearLocksForSet(setId);
       meshState.clearHolderRolled(setId);
 
-      // Restore saved state if same user picking up their dice
-      if (savedState) {
-        meshState.setLockState(setId, savedState.lockedIndices, savedState.values);
+      // Restore lock state if applicable
+      if (lockToRestore) {
+        meshState.setLockState(setId, lockToRestore.lockedIndices, lockToRestore.values);
         meshState.setHolderHasRolled(setId); // They had rolled before, so can continue locking
 
-        // Update dice roller current values with saved values
+        // Update dice roller current values with locked values
         if (this.diceRoller) {
           const currentVals = this.diceRoller.currentValues[setId] || [];
           const newVals = [...currentVals];
-          for (let i = 0; i < savedState.lockedIndices.length; i++) {
-            const idx = savedState.lockedIndices[i];
-            newVals[idx] = savedState.values[i];
+          for (let i = 0; i < lockToRestore.lockedIndices.length; i++) {
+            const idx = lockToRestore.lockedIndices[i];
+            newVals[idx] = lockToRestore.values[i];
           }
           this.diceRoller.currentValues[setId] = newVals;
         }
@@ -499,9 +522,9 @@ class DiceBoxApp {
         setId,
         peerId: myId,
         username: this.roomManager.username,
-        restoredLock: savedState ? {
-          lockedIndices: savedState.lockedIndices,
-          values: savedState.values
+        restoredLock: lockToRestore ? {
+          lockedIndices: lockToRestore.lockedIndices,
+          values: lockToRestore.values
         } : null
       });
 
