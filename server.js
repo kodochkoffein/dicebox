@@ -32,6 +32,7 @@ const RATE_LIMIT = {
   windowMs: 1000,
   maxMessages: 50,
   maxConnectionsPerIp: 10,
+  maxMessageSize: 64 * 1024, // 64KB - more than enough for signaling messages
 };
 
 // Local maps for WebSocket references (cannot be stored in Redis)
@@ -142,7 +143,10 @@ const server = http.createServer(async (req, res) => {
 });
 
 // WebSocket signaling server - MESH TOPOLOGY
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({
+  server,
+  maxPayload: RATE_LIMIT.maxMessageSize,
+});
 
 // Generate cryptographically secure peer ID
 function generatePeerId() {
@@ -295,6 +299,12 @@ wss.on('connection', (ws, req) => {
   let sessionToken = null;
 
   ws.on('message', async (data) => {
+    // Check message size (defense in depth - maxPayload should catch this first)
+    if (data.length > RATE_LIMIT.maxMessageSize) {
+      sendError(ws, 'message-too-large', 'Message exceeds maximum size');
+      return;
+    }
+
     let message;
     try {
       message = JSON.parse(data);
