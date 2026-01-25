@@ -9,9 +9,15 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-  "keywords": ["dice", "webrtc", "web-components", "p2p"],
+  "keywords": [
+    "dice",
+    "webrtc",
+    "web-components",
+    "p2p"
+  ],
   "license": "MIT",
   "dependencies": {
+    "pino": "^9.6.0",
     "redis": "^4.6.13",
     "ws": "^8.16.0"
   },
