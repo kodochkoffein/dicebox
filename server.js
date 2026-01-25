@@ -625,7 +625,7 @@ wss.on('connection', (ws, req) => {
 });
 
 // Cleanup stale rate limit entries periodically
-setInterval(() => {
+const rateLimitCleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [peerId, rateData] of messageRates) {
     if (now - rateData.windowStart > RATE_LIMIT.windowMs * 10) {
@@ -635,7 +635,7 @@ setInterval(() => {
 }, 60000);
 
 // Cleanup expired sessions periodically
-setInterval(async () => {
+const sessionCleanupInterval = setInterval(async () => {
   try {
     const expired = await storage.cleanupExpiredSessions();
 
@@ -668,6 +668,10 @@ async function shutdown(signal) {
   isShuttingDown = true;
   logger.info({ signal }, 'Shutdown signal received, closing gracefully');
 
+  // Clear cleanup intervals to prevent operations on closing resources
+  clearInterval(rateLimitCleanupInterval);
+  clearInterval(sessionCleanupInterval);
+
   // Stop accepting new WebSocket connections
   wss.close(() => {
     logger.info('WebSocket server closed');
@@ -675,7 +679,7 @@ async function shutdown(signal) {
 
   // Close all existing WebSocket connections
   const closePromises = [];
-  for (const [peerId, ws] of wsConnections) {
+  for (const ws of wsConnections.values()) {
     closePromises.push(new Promise((resolve) => {
       ws.close(1001, 'Server shutting down');
       ws.once('close', resolve);
@@ -687,9 +691,12 @@ async function shutdown(signal) {
   await Promise.all(closePromises);
   logger.info({ count: wsConnections.size }, 'WebSocket connections closed');
 
-  // Close HTTP server
-  server.close(() => {
-    logger.info('HTTP server closed');
+  // Close HTTP server and wait for completion
+  await new Promise((resolve) => {
+    server.close(() => {
+      logger.info('HTTP server closed');
+      resolve();
+    });
   });
 
   // Disconnect from storage (Redis)
