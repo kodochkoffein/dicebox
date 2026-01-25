@@ -4,6 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const WebSocket = require('ws');
 const { createStorage, SESSION_EXPIRY_SECONDS } = require('./state-storage.js');
+const { logger, truncatePeerId } = require('./logger.js');
 
 const PORT = process.env.PORT || 3000;
 
@@ -323,7 +324,7 @@ async function checkRoomEmpty(roomId) {
   const connected = await getConnectedRoomPeers(roomId);
   if (connected.length === 0) {
     await storage.deleteRoom(roomId);
-    console.log(`Room ${roomId} deleted (no connected peers)`);
+    logger.info({ roomId }, 'Room deleted (no connected peers)');
     return true;
   }
   return false;
@@ -396,7 +397,7 @@ wss.on('connection', (ws, req) => {
         wsConnections.set(peerId, ws);
         await storage.setPeer(peerId, { roomId: previousRoomId, ip, sessionToken });
 
-        console.log(`Session restored: ${peerId.substring(0, 8)}... (token: ${sessionToken.substring(0, 8)}...)`);
+        logger.info({ peerId: truncatePeerId(peerId), restored: true }, 'Session restored');
 
         // Send peer their restored ID and room info
         sendTo(ws, {
@@ -427,7 +428,7 @@ wss.on('connection', (ws, req) => {
         wsConnections.set(peerId, ws);
         await storage.setPeer(peerId, { roomId: null, ip, sessionToken });
 
-        console.log(`New session: ${peerId.substring(0, 8)}... (token: ${sessionToken.substring(0, 8)}...)`);
+        logger.info({ peerId: truncatePeerId(peerId), restored: false }, 'New session created');
 
         sendTo(ws, { type: 'peer-id', peerId, restored: false });
       }
@@ -517,7 +518,7 @@ wss.on('connection', (ws, req) => {
         await storage.updateSessionRoom(sessionToken, roomId);
 
         sendTo(ws, { type: 'create-room-success', roomId });
-        console.log(`Room ${roomId} created by ${peerId.substring(0, 8)}...`);
+        logger.info({ roomId, peerId: truncatePeerId(peerId) }, 'Room created');
         break;
       }
 
@@ -567,7 +568,7 @@ wss.on('connection', (ws, req) => {
           });
         }
 
-        console.log(`Peer ${peerId.substring(0, 8)}... joining room ${roomId} (${peerIds.length} existing peers)`);
+        logger.info({ roomId, peerId: truncatePeerId(peerId), existingPeers: peerIds.length }, 'Peer joining room');
         break;
       }
 
@@ -612,7 +613,7 @@ wss.on('connection', (ws, req) => {
             roomId
           });
 
-          console.log(`Peer ${peerId.substring(0, 8)}... left room ${roomId}`);
+          logger.info({ roomId, peerId: truncatePeerId(peerId) }, 'Peer left room');
 
           // Check if room is now empty
           await checkRoomEmpty(roomId);
@@ -647,7 +648,7 @@ wss.on('connection', (ws, req) => {
           roomId
         }, peerId);
 
-        console.log(`Peer ${peerId.substring(0, 8)}... disconnected from room ${roomId}`);
+        logger.info({ roomId, peerId: truncatePeerId(peerId) }, 'Peer disconnected from room');
 
         // Don't remove from room immediately - allow reconnection
         // Cleanup will happen via session expiry
@@ -657,11 +658,11 @@ wss.on('connection', (ws, req) => {
     messageRates.delete(peerId);
     wsConnections.delete(peerId);
     await storage.deletePeer(peerId);
-    console.log(`Peer disconnected: ${peerId.substring(0, 8)}...`);
+    logger.debug({ peerId: truncatePeerId(peerId) }, 'Peer disconnected');
   });
 
   ws.on('error', (error) => {
-    console.error(`WebSocket error for peer ${peerId ? peerId.substring(0, 8) + '...' : 'unknown'}:`, error.message);
+    logger.error({ peerId: truncatePeerId(peerId), error: error.message }, 'WebSocket error');
   });
 });
 
@@ -690,10 +691,10 @@ setInterval(async () => {
     }
 
     if (expired.length > 0) {
-      console.log(`Cleaned up ${expired.length} expired session(s)`);
+      logger.info({ count: expired.length }, 'Cleaned up expired sessions');
     }
   } catch (err) {
-    console.error('Error cleaning up sessions:', err.message);
+    logger.error({ error: err.message }, 'Error cleaning up sessions');
   }
 }, 60000);
 
@@ -703,20 +704,19 @@ async function start() {
   await storage.connect();
 
   server.listen(PORT, () => {
-    console.log(`DiceBox server running on http://localhost:${PORT}`);
-    console.log(`Mesh topology signaling server ready`);
+    logger.info({ port: PORT }, 'DiceBox server started');
+    logger.info('Mesh topology signaling server ready');
 
     if (TURN_CONFIG.urls) {
       const mode = TURN_CONFIG.secret ? 'time-limited' : 'static';
-      console.log(`TURN servers configured (${mode} credentials): ${TURN_CONFIG.urls.join(', ')}`);
-      console.log(`TURN credentials endpoint: /api/turn-credentials`);
+      logger.info({ mode, servers: TURN_CONFIG.urls }, 'TURN servers configured');
     } else {
-      console.log('TURN not configured (STUN only). Set TURN_URL environment variable to enable.');
+      logger.info('TURN not configured (STUN only)');
     }
   });
 }
 
 start().catch(err => {
-  console.error('Failed to start server:', err);
+  logger.fatal({ error: err.message }, 'Failed to start server');
   process.exit(1);
 });

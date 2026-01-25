@@ -9,6 +9,7 @@
  */
 
 const { createClient } = require('redis');
+const { logger } = require('./logger.js');
 
 // Configuration
 const REDIS_HOST = process.env.REDIS_HOST;
@@ -34,7 +35,7 @@ class MemoryStorage {
   }
 
   async connect() {
-    console.log('Using in-memory state storage');
+    logger.info('Using in-memory state storage');
     return true;
   }
 
@@ -165,20 +166,20 @@ class RedisStorage {
 
   async connect() {
     const url = `redis://${REDIS_HOST}:${REDIS_PORT}`;
-    console.log(`Connecting to Redis at ${url}...`);
+    logger.info({ host: REDIS_HOST, port: REDIS_PORT }, 'Connecting to Redis');
 
     this.client = createClient({ url });
 
     this.client.on('error', (err) => {
-      console.error('Redis client error:', err.message);
+      logger.error({ error: err.message }, 'Redis client error');
     });
 
     this.client.on('reconnecting', () => {
-      console.log('Redis client reconnecting...');
+      logger.warn('Redis client reconnecting');
     });
 
     await this.client.connect();
-    console.log('Connected to Redis');
+    logger.info('Connected to Redis');
     return true;
   }
 
