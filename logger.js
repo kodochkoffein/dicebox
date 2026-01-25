@@ -6,7 +6,7 @@
  *
  * Environment variables:
  *   LOG_LEVEL: Set log level (trace, debug, info, warn, error, fatal). Default: info
- *   LOG_PRETTY: Set to 'true' for human-readable output in development
+ *   LOG_PRETTY: Set to 'true' for human-readable output in development (requires pino-pretty)
  */
 
 const pino = require('pino');
@@ -14,20 +14,21 @@ const pino = require('pino');
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const LOG_PRETTY = process.env.LOG_PRETTY === 'true';
 
-// Create the logger with appropriate configuration
-const logger = pino({
+/**
+ * Check if pino-pretty is available for pretty-printing
+ */
+function isPinoPrettyAvailable() {
+  try {
+    require.resolve('pino-pretty');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Build logger configuration
+const loggerConfig = {
   level: LOG_LEVEL,
-  // Use human-readable format in development, JSON in production
-  ...(LOG_PRETTY && {
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'SYS:standard',
-        ignore: 'pid,hostname',
-      },
-    },
-  }),
   // Base fields included in every log entry
   base: {
     service: 'dicebox',
@@ -39,7 +40,27 @@ const logger = pino({
     paths: ['sessionToken', 'credential', 'secret', '*.sessionToken', '*.credential', '*.secret'],
     censor: '[REDACTED]',
   },
-});
+};
+
+// Add pretty-printing transport if requested and available
+if (LOG_PRETTY) {
+  if (isPinoPrettyAvailable()) {
+    loggerConfig.transport = {
+      target: 'pino-pretty',
+      options: {
+        colorize: true,
+        translateTime: 'SYS:standard',
+        ignore: 'pid,hostname',
+      },
+    };
+  } else {
+    // Log warning to stderr since logger isn't created yet
+    console.warn('LOG_PRETTY=true but pino-pretty is not installed. Falling back to JSON logging.');
+  }
+}
+
+// Create the logger
+const logger = pino(loggerConfig);
 
 /**
  * Create a child logger with additional context

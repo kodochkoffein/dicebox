@@ -175,7 +175,7 @@ Response:
 Logs are JSON-formatted for easy parsing:
 
 ```json
-{"level":30,"time":"2024-01-15T10:30:00.000Z","service":"dicebox","roomId":"⚀⚁⚂⚃","msg":"Room created"}
+{"level":30,"time":"<ISO-8601-TIMESTAMP>","service":"dicebox","roomId":"⚀⚁⚂⚃","msg":"Room created"}
 ```
 
 Recommended log aggregation: ELK Stack, Grafana Loki, or CloudWatch Logs.

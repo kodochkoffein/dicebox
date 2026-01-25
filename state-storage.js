@@ -166,17 +166,25 @@ class RedisStorage {
   }
 
   async connect() {
-    // Build Redis URL with optional authentication
-    const authPart = REDIS_PASSWORD ? `:${REDIS_PASSWORD}@` : '';
-    const url = `redis://${authPart}${REDIS_HOST}:${REDIS_PORT}`;
-
     logger.info({
       host: REDIS_HOST,
       port: REDIS_PORT,
       authenticated: !!REDIS_PASSWORD
     }, 'Connecting to Redis');
 
-    this.client = createClient({ url });
+    // Use object-based configuration to avoid credentials in URL strings
+    const clientConfig = {
+      socket: {
+        host: REDIS_HOST,
+        port: parseInt(REDIS_PORT, 10),
+      },
+    };
+
+    if (REDIS_PASSWORD) {
+      clientConfig.password = REDIS_PASSWORD;
+    }
+
+    this.client = createClient(clientConfig);
 
     this.client.on('error', (err) => {
       logger.error({ error: err.message }, 'Redis client error');
