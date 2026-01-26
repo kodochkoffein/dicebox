@@ -363,7 +363,9 @@ class DiceBoxApp {
     // Restore lock state if provided (same user picking up their dice)
     if (restoredLock && restoredLock.lockedIndices && restoredLock.lockedIndices.length > 0) {
       meshState.setLockState(setId, restoredLock.lockedIndices, restoredLock.values);
-      meshState.setHolderHasRolled(setId); // They had rolled before
+      if (restoredLock.canLock) {
+        meshState.setHolderHasRolled(setId); // Only enable locking if they were lastRoller
+      }
     }
 
     this.updateDiceRollerState();
@@ -481,17 +483,19 @@ class DiceBoxApp {
 
       // Determine what lock state to use
       let lockToRestore = null;
+      let shouldEnableLocking = false;
 
       if (iAmLastRoller && currentLocks) {
-        // I was lastRoller and had locks - preserve them
+        // I was lastRoller and had locks - preserve them and allow continued locking
         lockToRestore = {
           lockedIndices: [...currentLocks.lockedIndices],
           values: Array.isArray(currentLocks.values)
             ? [...currentLocks.values]
             : [...currentLocks.values.values()]
         };
+        shouldEnableLocking = true;
       } else if (savedState) {
-        // Restore from saved state (dropped dice scenario)
+        // Restore from saved state (dropped dice scenario) - visual only, no locking until roll
         lockToRestore = savedState;
       }
 
@@ -502,7 +506,9 @@ class DiceBoxApp {
       // Restore lock state if applicable
       if (lockToRestore) {
         meshState.setLockState(setId, lockToRestore.lockedIndices, lockToRestore.values);
-        meshState.setHolderHasRolled(setId); // They had rolled before, so can continue locking
+        if (shouldEnableLocking) {
+          meshState.setHolderHasRolled(setId); // Only enable locking if they were lastRoller
+        }
 
         // Update dice roller current values with locked values
         if (this.diceRoller) {
@@ -524,7 +530,8 @@ class DiceBoxApp {
         username: this.roomManager.username,
         restoredLock: lockToRestore ? {
           lockedIndices: lockToRestore.lockedIndices,
-          values: lockToRestore.values
+          values: lockToRestore.values,
+          canLock: shouldEnableLocking
         } : null
       });
 
