@@ -314,6 +314,10 @@ class DiceRoller extends HTMLElement {
     return false;
   }
 
+  /**
+   * Start a roll - begins animation and requests values from a peer
+   * Values are NOT generated locally to prevent cheating
+   */
   async roll() {
     if (this.isRolling) return;
     this.isRolling = true;
@@ -323,6 +327,9 @@ class DiceRoller extends HTMLElement {
     for (const [setId, lockedMap] of this.lockedDice) {
       lockedBySet.set(setId, new Map(lockedMap));
     }
+
+    // Store for use in completeRoll
+    this._pendingLockedBySet = lockedBySet;
 
     // First, render dice sets with rolling animation (except locked dice)
     this.diceSets.forEach(set => {
@@ -357,33 +364,62 @@ class DiceRoller extends HTMLElement {
       }
     });
 
-    // Animate for 500ms (only unlocked dice)
-    const animate = () => {
+    // Start animation
+    this._animationInterval = setInterval(() => {
       this.querySelectorAll('.die.rolling').forEach(die => {
         const pipColor = die.dataset.pipColor || '#ffffff';
         die.innerHTML = getDiceSvg(Math.floor(Math.random() * 6) + 1, pipColor);
       });
-    };
-    const interval = setInterval(animate, 80);
-    await new Promise(r => setTimeout(r, 500));
-    clearInterval(interval);
+    }, 80);
 
-    // Generate final values for each set (keep locked values)
-    const rollResults = {};
-    let totalSum = 0;
+    // Track animation minimum duration (500ms)
+    this._animationStartTime = Date.now();
 
-    this.diceSets.forEach(set => {
-      const locked = lockedBySet.get(set.id) || new Map();
-      const values = Array(set.count).fill(0).map((_, i) => {
-        if (locked.has(i)) {
-          return locked.get(i); // Keep locked value
-        }
-        return Math.floor(Math.random() * 6) + 1; // Roll new value
-      });
-      rollResults[set.id] = values;
-      this.currentValues[set.id] = values;
-      totalSum += values.reduce((a, b) => a + b, 0);
-    });
+    // Emit roll-requested event - app will request values from a peer
+    // Values are NOT generated here to prevent cheating
+    this.dispatchEvent(new CustomEvent('roll-requested', {
+      bubbles: true,
+      detail: {
+        diceSets: this.diceSets.map(set => ({
+          id: set.id,
+          count: set.count,
+          color: set.color
+        })),
+        holders: Array.from(this.holders.entries()),
+        lockedDice: Array.from(lockedBySet.entries()).map(([setId, m]) => ({
+          setId,
+          lockedIndices: [...m.keys()],
+          values: [...m.values()]
+        }))
+      }
+    }));
+  }
+
+  /**
+   * Complete a roll with values received from a peer
+   * Called by app.js when delegated roll values are received
+   */
+  async completeRoll(rollResults, lockedDiceInfo) {
+    if (!this.isRolling) return;
+
+    // Ensure minimum animation duration of 500ms
+    const elapsed = Date.now() - this._animationStartTime;
+    if (elapsed < 500) {
+      await new Promise(r => setTimeout(r, 500 - elapsed));
+    }
+
+    // Stop animation
+    if (this._animationInterval) {
+      clearInterval(this._animationInterval);
+      this._animationInterval = null;
+    }
+
+    const lockedBySet = this._pendingLockedBySet || new Map();
+
+    // Update current values
+    for (const setId in rollResults) {
+      this.currentValues[setId] = rollResults[setId];
+    }
 
     // Show results
     this.diceSets.forEach(set => {
@@ -405,27 +441,49 @@ class DiceRoller extends HTMLElement {
     });
 
     this.isRolling = false;
+    this._pendingLockedBySet = null;
 
     // Mark that holder has rolled (enables locking for next time)
     for (const set of this.diceSets) {
       this.holderHasRolled.set(set.id, true);
     }
 
-    // Emit roll event with per-set results
-    this.dispatchEvent(new CustomEvent('dice-rolled', {
+    // Calculate total
+    let totalSum = 0;
+    for (const setId in rollResults) {
+      totalSum += rollResults[setId].reduce((a, b) => a + b, 0);
+    }
+
+    // Emit roll-completed event for history tracking
+    this.dispatchEvent(new CustomEvent('roll-completed', {
       bubbles: true,
       detail: {
         diceType: 6,
-        rollResults,  // { setId: [values] }
+        rollResults,
         total: totalSum,
-        holders: Array.from(this.holders.entries()), // Who held what
-        lockedDice: Array.from(lockedBySet.entries()).map(([setId, m]) => ({
-          setId,
-          lockedIndices: [...m.keys()],
-          values: [...m.values()]
-        }))
+        holders: Array.from(this.holders.entries()),
+        lockedDice: lockedDiceInfo || []
       }
     }));
+  }
+
+  /**
+   * Cancel a pending roll (e.g., if request times out completely)
+   */
+  cancelRoll() {
+    if (!this.isRolling) return;
+
+    // Stop animation
+    if (this._animationInterval) {
+      clearInterval(this._animationInterval);
+      this._animationInterval = null;
+    }
+
+    this.isRolling = false;
+    this._pendingLockedBySet = null;
+
+    // Re-render to show previous state
+    this.render();
   }
 
   // External API
