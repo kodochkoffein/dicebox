@@ -7,8 +7,18 @@
   flex-direction: column;
 }
 
+/* Subtle paper texture like landing page */
+.play-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+}
+
 /* Override sticky nav for play page */
-.play-container > nav {
+.play-container>nav {
   position: relative;
 }
 
@@ -18,40 +28,130 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 30px 20px 50px;
+  position: relative;
+  z-index: 2;
+}
+
+.play-main::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background: repeating-linear-gradient(90deg,
+      var(--gold) 0px,
+      var(--gold) 16px,
+      var(--red) 16px,
+      var(--red) 32px);
+}
+
+.play-shell {
+  width: 100%;
+  max-width: 620px;
+}
+
+.play-frame {
+  background: var(--red);
+  padding: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.play-inner {
+  display: flex;
+  justify-content: center;
+  background: var(--cream);
+  border: 2px solid var(--navy);
+  padding: 30px 24px 34px;
+  position: relative;
+}
+
+.play-corner {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--gold);
+}
+
+.play-inner .corner-tl {
+  top: 8px;
+  left: 8px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.play-inner .corner-tr {
+  top: 8px;
+  right: 8px;
+  border-left: none;
+  border-bottom: none;
+}
+
+.play-inner .corner-bl {
+  bottom: 8px;
+  left: 8px;
+  border-right: none;
+  border-top: none;
+}
+
+.play-inner .corner-br {
+  bottom: 8px;
+  right: 8px;
+  border-left: none;
+  border-top: none;
+}
+
+.play-badge {
+  display: inline-block;
+  background: var(--navy);
+  color: var(--gold);
+  padding: 6px 16px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 18px;
 }
 
 /* Mode selection view */
 .mode-selection {
   text-align: center;
-  max-width: 400px;
+  max-width: 460px;
   width: 100%;
+  margin: 0 auto;
 }
 
 .mode-selection h1 {
   font-family: 'Alfa Slab One', cursive;
-  font-size: 2rem;
+  font-size: 2.4rem;
   color: var(--red);
   margin-bottom: 8px;
+  text-transform: uppercase;
+  text-shadow: 2px 2px 0 var(--red-dark);
 }
 
-.mode-selection p {
-  color: var(--text-muted);
-  margin-bottom: 30px;
+.play-subtitle {
+  font-family: 'Oswald', sans-serif;
+  color: var(--navy);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 26px;
+  font-size: 0.95rem;
 }
 
 .mode-buttons {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 16px;
 }
 
 .mode-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 25px;
-  background: var(--surface);
+  padding: 24px;
+  background: #fffef9;
   border: 3px solid var(--navy);
   border-radius: var(--border-radius);
   cursor: pointer;
@@ -86,7 +186,7 @@
 
 .mode-btn-desc {
   font-size: 0.9rem;
-  color: var(--text-muted);
+  color: var(--brown);
 }
 
 .mode-btn.create-btn {
@@ -101,7 +201,7 @@
 .view {
   display: none;
   width: 100%;
-  max-width: 450px;
+  max-width: 520px;
 }
 
 .view.active {
@@ -116,14 +216,18 @@
 
 .form-header h2 {
   font-family: 'Alfa Slab One', cursive;
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   color: var(--red);
   margin-bottom: 5px;
+  text-transform: uppercase;
 }
 
 .form-header p {
-  color: var(--text-muted);
-  font-size: 0.95rem;
+  font-family: 'Oswald', sans-serif;
+  color: var(--navy);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .back-to-modes {
@@ -136,8 +240,7 @@
   font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 1px;
-  margin-bottom: 20px;
-  transition: color 0.2s ease;
+  transition: color 0.25s ease;
 }
 
 .back-to-modes:hover {
@@ -145,13 +248,17 @@
 }
 
 /* Hide nav when in room */
-#app.in-room > nav {
+#app.in-room>nav {
   display: none;
 }
 
 #app.in-room .play-main {
   padding: 0;
   justify-content: flex-start;
+}
+
+#app.in-room .play-shell {
+  display: none;
 }
 
 /* Room view should show when active */
