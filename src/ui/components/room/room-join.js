@@ -1,7 +1,7 @@
 /**
  * RoomJoin - Component for joining an existing dice room
  */
-import "./username-input.js";
+import "../shared/username-input.js";
 import "./room-code-input.js";
 
 class RoomJoin extends HTMLElement {

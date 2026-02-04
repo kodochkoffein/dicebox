@@ -2,8 +2,8 @@
  * DiceHistory - Web Component for displaying roll history
  * Shows each dice set with its holder and color
  */
-import { getDiceSvg, getPipColor } from "../utils/dice-utils.js";
-import { escapeHtml } from "../utils/html-utils.js";
+import { getDiceSvg, getPipColor } from "../../../utils/dice-utils.js";
+import { escapeHtml } from "../../../utils/html-utils.js";
 
 class DiceHistory extends HTMLElement {
   constructor() {

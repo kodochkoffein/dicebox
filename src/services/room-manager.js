@@ -4,7 +4,7 @@
  */
 import { signalingClient } from "./signaling-client.js";
 import { webrtcManager } from "./webrtc-manager.js";
-import { MeshState } from "./mesh-state.js";
+import { MeshState } from "../state/mesh-state.js";
 
 export class RoomManager extends EventTarget {
   constructor() {

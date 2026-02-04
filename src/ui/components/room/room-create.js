@@ -1,7 +1,7 @@
 /**
  * RoomCreate - Component for creating a new dice room
  */
-import "./username-input.js";
+import "../shared/username-input.js";
 import "./dice-config.js";
 
 class RoomCreate extends HTMLElement {

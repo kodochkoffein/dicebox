@@ -78,20 +78,8 @@
     </main>
   </div>
 
-  <!-- Web Components -->
-  <script type="module" src="../js/signaling-client.js"></script>
-  <script type="module" src="../js/webrtc-manager.js"></script>
-  <script type="module" src="../js/components/play-frame.js"></script>
-  <script type="module" src="../js/components/header-bar.js"></script>
-  <script type="module" src="../js/components/room-create.js"></script>
-  <script type="module" src="../js/components/room-join.js"></script>
-  <!-- Dice roller components -->
-  <script type="module" src="@dice/ui/containers/DiceRollerContainer.js"></script>
-  <script type="module" src="@dice/ui/components/dice/Die.js"></script>
-  <script type="module" src="../js/components/dice-history.js"></script>
-  <script type="module" src="../js/components/peer-list.js"></script>
-  <script type="module" src="../js/components/room-view.js"></script>
-  <script type="module" src="../js/app.js"></script>
+  <!-- Application entry point (loads all required modules) -->
+  <script type="module" src="@dice/app/main.js"></script>
 
   <!-- Client-side routing -->
   <script>
