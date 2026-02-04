@@ -3,29 +3,29 @@
  * Provides the red/navy bordered frame with gold corner decorations
  */
 class PlayFrame extends HTMLElement {
-  constructor() {
-    super();
-  }
-
   connectedCallback() {
-    this.render();
-  }
+    // Move existing children to a fragment
+    const fragment = document.createDocumentFragment();
+    while (this.firstChild) {
+      fragment.appendChild(this.firstChild);
+    }
 
-  render() {
-    // Get the original content before replacing
-    const content = this.innerHTML;
-
-    this.innerHTML = `
-      <div class="play-frame-outer">
-        <div class="play-frame-inner">
-          <span class="play-corner corner-tl"></span>
-          <span class="play-corner corner-tr"></span>
-          <span class="play-corner corner-bl"></span>
-          <span class="play-corner corner-br"></span>
-          <div class="play-frame-content">${content}</div>
-        </div>
+    // Create the frame structure
+    const outer = document.createElement('div');
+    outer.className = 'play-frame-outer';
+    outer.innerHTML = `
+      <div class="play-frame-inner">
+        <span class="play-corner corner-tl"></span>
+        <span class="play-corner corner-tr"></span>
+        <span class="play-corner corner-bl"></span>
+        <span class="play-corner corner-br"></span>
+        <div class="play-frame-content"></div>
       </div>
     `;
+
+    // Append original children to content area
+    outer.querySelector('.play-frame-content').appendChild(fragment);
+    this.appendChild(outer);
   }
 }
 
