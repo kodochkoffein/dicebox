@@ -1,7 +1,7 @@
 /**
  * RoomCodeInput - Component for 4 clickable dice to enter room codes
  */
-import { getDiceSvg } from "../utils/dice-utils.js";
+import { getDiceSvg } from "../../../utils/dice-utils.js";
 
 class RoomCodeInput extends HTMLElement {
   constructor() {

@@ -1,7 +1,7 @@
 /**
  * PeerList - Web Component for displaying connected peers
  */
-import { escapeHtml } from "../utils/html-utils.js";
+import { escapeHtml } from "../../../utils/html-utils.js";
 
 class PeerList extends HTMLElement {
   constructor() {

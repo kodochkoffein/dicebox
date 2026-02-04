@@ -24,7 +24,7 @@
  * - Cloudflare Calls (beta)
  */
 import { signalingClient } from "./signaling-client.js";
-import { getApiBaseUrl } from "./config.js";
+import { getApiBaseUrl } from "../config.js";
 
 // Default STUN servers (free, public)
 const DEFAULT_STUN_SERVERS = [

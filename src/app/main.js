@@ -1,17 +1,29 @@
 /**
  * DiceBox - Main Application
  * Mesh topology: all peers are equal, no host/client distinction
- *
- * Now uses the new strategy-based dice rolling architecture.
  */
-import { signalingClient } from "./signaling-client.js";
-import { webrtcManager } from "./webrtc-manager.js";
-import { ConnectionManager } from "./connection-manager.js";
-import { RoomManager } from "./room-manager.js";
-import { MessageRouter, MSG } from "./message-router.js";
 
-// Import dice rolling architecture
-import { createApp } from "@dice/app/App.js";
+// Services
+import { signalingClient } from "../services/signaling-client.js";
+import { webrtcManager } from "../services/webrtc-manager.js";
+import { ConnectionManager } from "../services/connection-manager.js";
+import { RoomManager } from "../services/room-manager.js";
+import { MessageRouter, MSG } from "../services/message-router.js";
+
+// Dice app
+import { createApp } from "./App.js";
+
+// UI Components (register custom elements)
+import "../ui/components/shared/play-frame.js";
+import "../ui/components/shared/header-bar.js";
+import "../ui/components/shared/username-input.js";
+import "../ui/components/room/room-create.js";
+import "../ui/components/room/room-join.js";
+import "../ui/components/room/room-view.js";
+import "../ui/components/room/room-code-input.js";
+import "../ui/components/room/dice-config.js";
+import "../ui/components/room/dice-history.js";
+import "../ui/components/room/peer-list.js";
 
 class DiceBoxApp {
   constructor() {

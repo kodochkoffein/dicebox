@@ -3,7 +3,7 @@
  * Handles: peer ID assignment, room queries, room creation/joining, and WebRTC signaling
  */
 
-import { getWebSocketUrl } from "./config.js";
+import { getWebSocketUrl } from "../config.js";
 
 // Heartbeat interval (should be less than server's SESSION_EXPIRY)
 const HEARTBEAT_INTERVAL = 30000; // 30 seconds
