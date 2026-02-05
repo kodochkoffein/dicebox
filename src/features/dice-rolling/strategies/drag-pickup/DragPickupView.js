@@ -1,4 +1,4 @@
-import { getDiceSvg, getPipColor } from '../../../../utils/dice-utils.js';
+import "../../../../ui/components/dice/Die.js";
 
 /**
  * View component for the "Drag to Pick Up" strategy.
@@ -48,26 +48,30 @@ export class DragPickupView extends HTMLElement {
 
   #setupEventListeners() {
     // Touch events
-    this.addEventListener('touchstart', this.#handleDragStart, { passive: false });
-    document.addEventListener('touchmove', this.#handleDragMove, { passive: false });
-    document.addEventListener('touchend', this.#handleDragEnd);
-    document.addEventListener('touchcancel', this.#handleDragEnd);
+    this.addEventListener("touchstart", this.#handleDragStart, {
+      passive: false,
+    });
+    document.addEventListener("touchmove", this.#handleDragMove, {
+      passive: false,
+    });
+    document.addEventListener("touchend", this.#handleDragEnd);
+    document.addEventListener("touchcancel", this.#handleDragEnd);
 
     // Mouse events (for desktop)
-    this.addEventListener('mousedown', this.#handleDragStart);
-    document.addEventListener('mousemove', this.#handleDragMove);
-    document.addEventListener('mouseup', this.#handleDragEnd);
+    this.addEventListener("mousedown", this.#handleDragStart);
+    document.addEventListener("mousemove", this.#handleDragMove);
+    document.addEventListener("mouseup", this.#handleDragEnd);
   }
 
   #removeEventListeners() {
-    this.removeEventListener('touchstart', this.#handleDragStart);
-    document.removeEventListener('touchmove', this.#handleDragMove);
-    document.removeEventListener('touchend', this.#handleDragEnd);
-    document.removeEventListener('touchcancel', this.#handleDragEnd);
+    this.removeEventListener("touchstart", this.#handleDragStart);
+    document.removeEventListener("touchmove", this.#handleDragMove);
+    document.removeEventListener("touchend", this.#handleDragEnd);
+    document.removeEventListener("touchcancel", this.#handleDragEnd);
 
-    this.removeEventListener('mousedown', this.#handleDragStart);
-    document.removeEventListener('mousemove', this.#handleDragMove);
-    document.removeEventListener('mouseup', this.#handleDragEnd);
+    this.removeEventListener("mousedown", this.#handleDragStart);
+    document.removeEventListener("mousemove", this.#handleDragMove);
+    document.removeEventListener("mouseup", this.#handleDragEnd);
   }
 
   #getPointFromEvent(e) {
@@ -80,7 +84,7 @@ export class DragPickupView extends HTMLElement {
   #getDieAtPoint(x, y) {
     const elements = document.elementsFromPoint(x, y);
     for (const el of elements) {
-      const wrapper = el.closest('.die-wrapper');
+      const wrapper = el.closest(".die-wrapper");
       if (wrapper && this.contains(wrapper)) {
         return parseInt(wrapper.dataset.dieIndex, 10);
       }
@@ -89,10 +93,12 @@ export class DragPickupView extends HTMLElement {
   }
 
   #isPointInDiceArea(x, y) {
-    const diceArea = this.querySelector('.dice-display');
+    const diceArea = this.querySelector(".dice-display");
     if (!diceArea) return false;
     const rect = diceArea.getBoundingClientRect();
-    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    return (
+      x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+    );
   }
 
   #handleDragStart = (e) => {
@@ -143,7 +149,9 @@ export class DragPickupView extends HTMLElement {
   #handleDragEnd = (e) => {
     if (!this.#isDragging || this.#isRolling) return;
 
-    const point = this.#getPointFromEvent(e.changedTouches ? e.changedTouches[0] : e);
+    const point = this.#getPointFromEvent(
+      e.changedTouches ? e.changedTouches[0] : e,
+    );
     const wasCancelled = !this.#isPointInDiceArea(point.x, point.y);
 
     this.#isDragging = false;
@@ -161,24 +169,27 @@ export class DragPickupView extends HTMLElement {
   };
 
   #updateDragState() {
-    const diceArea = this.querySelector('.dice-display');
-    const hint = this.querySelector('.hint');
+    const diceArea = this.querySelector(".dice-display");
+    const hint = this.querySelector(".hint");
 
     if (diceArea) {
-      diceArea.classList.toggle('dragging', this.#isDragging && !this.#isCancelled);
-      diceArea.classList.toggle('cancelled', this.#isCancelled);
+      diceArea.classList.toggle(
+        "dragging",
+        this.#isDragging && !this.#isCancelled,
+      );
+      diceArea.classList.toggle("cancelled", this.#isCancelled);
     }
 
     if (hint) {
       if (this.#isCancelled) {
-        hint.textContent = 'Release to cancel';
-        hint.className = 'hint cancelled';
+        hint.textContent = "Release to cancel";
+        hint.className = "hint cancelled";
       } else if (this.#pickedUpDice.size > 0) {
         hint.textContent = `${this.#pickedUpDice.size} dice picked up - release to roll`;
-        hint.className = 'hint active';
+        hint.className = "hint active";
       } else if (this.#isDragging) {
-        hint.textContent = 'Drag across dice...';
-        hint.className = 'hint active';
+        hint.textContent = "Drag across dice...";
+        hint.className = "hint active";
       }
     }
 
@@ -187,16 +198,16 @@ export class DragPickupView extends HTMLElement {
   }
 
   #updateDiceClasses() {
-    const wrappers = this.querySelectorAll('.die-wrapper');
+    const wrappers = this.querySelectorAll(".die-wrapper");
     const hasPickedUp = this.#pickedUpDice.size > 0;
 
     wrappers.forEach((wrapper, index) => {
-      const dieEl = wrapper.querySelector('.die, .die-placeholder');
+      const dieEl = wrapper.querySelector("dice-die");
       if (!dieEl) return;
 
       const isPickedUp = this.#pickedUpDice.has(index);
-      dieEl.classList.toggle('picked-up', isPickedUp);
-      dieEl.classList.toggle('not-picked', hasPickedUp && !isPickedUp);
+      dieEl.classList.toggle("picked-up", isPickedUp);
+      dieEl.classList.toggle("not-picked", hasPickedUp && !isPickedUp);
     });
   }
 
@@ -216,9 +227,8 @@ export class DragPickupView extends HTMLElement {
 
     // Animate random values
     const animateInterval = setInterval(() => {
-      this.querySelectorAll('.die.rolling').forEach((die) => {
-        const pipColor = die.dataset.pipColor || '#0f172a';
-        die.innerHTML = getDiceSvg(Math.floor(Math.random() * 6) + 1, pipColor);
+      this.querySelectorAll("dice-die.rolling").forEach((die) => {
+        die.setAttribute("value", Math.floor(Math.random() * 6) + 1);
       });
     }, 80);
 
@@ -240,32 +250,27 @@ export class DragPickupView extends HTMLElement {
   }
 
   #showRollingAnimation(diceToRoll) {
-    const wrappers = this.querySelectorAll('.die-wrapper');
+    const wrappers = this.querySelectorAll(".die-wrapper");
     const allDice = this.#strategy.getAllDice();
 
     wrappers.forEach((wrapper, index) => {
-      const dieEl = wrapper.querySelector('.die, .die-placeholder');
+      const dieEl = wrapper.querySelector("dice-die");
       if (!dieEl) return;
 
       if (diceToRoll.has(index)) {
         const die = allDice[index];
-        const pipColor = getPipColor(die.color);
-        wrapper.innerHTML = `
-          <div class="die rolling"
-               style="--set-color: ${die.color}"
-               data-pip-color="${pipColor}">
-            ${getDiceSvg(die.value || 1, pipColor)}
-          </div>
-        `;
+        dieEl.setAttribute("rolling", "");
+        dieEl.classList.add("rolling");
+        dieEl.classList.remove("picked-up", "not-picked", "placeholder");
       } else {
-        dieEl.classList.remove('picked-up', 'not-picked');
+        dieEl.classList.remove("picked-up", "not-picked");
       }
     });
 
-    const hint = this.querySelector('.hint');
+    const hint = this.querySelector(".hint");
     if (hint) {
-      hint.textContent = 'Rolling...';
-      hint.className = 'hint active';
+      hint.textContent = "Rolling...";
+      hint.className = "hint active";
     }
   }
 
@@ -287,49 +292,39 @@ export class DragPickupView extends HTMLElement {
 
     // Ensure transforms array is sized correctly
     while (this.#diceTransforms.length < allDice.length) {
-      this.#diceTransforms.push('');
+      this.#diceTransforms.push("");
     }
 
     const diceHtml = allDice
       .map((die, index) => {
         const isPickedUp = this.#pickedUpDice.has(index);
-        const pipColor = getPipColor(die.color);
-        const transform = isPickedUp ? '' : (this.#diceTransforms[index] || '');
+        const transform = isPickedUp ? "" : this.#diceTransforms[index] || "";
 
         if (die.value === null) {
           // Placeholder state
-          const classes = ['die-placeholder'];
-          if (isPickedUp) classes.push('picked-up');
-          else if (hasPickedUp) classes.push('not-picked');
+          const classes = ["placeholder"];
+          if (isPickedUp) classes.push("picked-up");
+          else if (hasPickedUp) classes.push("not-picked");
 
           return `
             <div class="die-wrapper" data-die-index="${index}">
-              <div class="${classes.join(' ')}" style="--set-color: ${die.color}">
-                ${getDiceSvg(1, pipColor)}
-              </div>
+              <dice-die class="${classes.join(" ")}" color="${die.color}" value="1"></dice-die>
             </div>
           `;
         }
 
         // Show actual value
-        const classes = ['die'];
-        if (isPickedUp) classes.push('picked-up');
-        else if (hasPickedUp) classes.push('not-picked');
+        const classes = [];
+        if (isPickedUp) classes.push("picked-up");
+        else if (hasPickedUp) classes.push("not-picked");
 
         return `
           <div class="die-wrapper" data-die-index="${index}">
-            <div class="${classes.join(' ')}"
-                 style="--set-color: ${die.color}; transform: ${transform}">
-              ${getDiceSvg(die.value, pipColor)}
-            </div>
+            <dice-die class="${classes.join(" ")}" color="${die.color}" value="${die.value}" style="transform: ${transform}"></dice-die>
           </div>
         `;
       })
-      .join('');
-
-    const total = hasValues
-      ? allDice.reduce((sum, d) => sum + (d.value || 0), 0)
-      : null;
+      .join("");
 
     this.innerHTML = `
       <div class="drag-pickup-container">
@@ -337,13 +332,10 @@ export class DragPickupView extends HTMLElement {
           ${diceHtml}
         </div>
         <div class="hint">Drag across dice to pick up</div>
-        <div class="total ${total !== null ? 'visible' : ''}">
-          ${total !== null ? `Total: ${total}` : ''}
-        </div>
       </div>
     `;
   }
 }
 
 // Register the custom element
-customElements.define('dice-drag-pickup', DragPickupView);
+customElements.define("dice-drag-pickup", DragPickupView);
