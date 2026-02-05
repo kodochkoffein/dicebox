@@ -108,7 +108,7 @@ export class MessageBus {
 
     // Call all handlers (in parallel)
     const promises = [...handlers].map((handler) =>
-      Promise.resolve(handler(processedMessage.payload, context))
+      Promise.resolve(handler(processedMessage.payload, context)),
     );
     await Promise.all(promises);
   }

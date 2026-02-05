@@ -11,8 +11,8 @@ class PlayFrame extends HTMLElement {
     }
 
     // Create the frame structure
-    const outer = document.createElement('div');
-    outer.className = 'play-frame-outer';
+    const outer = document.createElement("div");
+    outer.className = "play-frame-outer";
     outer.innerHTML = `
       <div class="play-frame-inner">
         <span class="play-corner corner-tl"></span>
@@ -24,7 +24,7 @@ class PlayFrame extends HTMLElement {
     `;
 
     // Append original children to content area
-    outer.querySelector('.play-frame-content').appendChild(fragment);
+    outer.querySelector(".play-frame-content").appendChild(fragment);
     this.appendChild(outer);
   }
 }

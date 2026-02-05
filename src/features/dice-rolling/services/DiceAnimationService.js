@@ -62,7 +62,7 @@ export class DiceAnimationService {
       setIds,
       diceConfig,
       lockedDice,
-      currentValues
+      currentValues,
     );
 
     // If no animation callback, just return final values
@@ -87,7 +87,7 @@ export class DiceAnimationService {
           setIds,
           diceConfig,
           lockedDice,
-          currentValues
+          currentValues,
         );
         onFrame(frameValues, false);
 

@@ -22,14 +22,14 @@ export class Store extends EventTarget {
   update(updater) {
     const oldState = this.#state;
     this.#state =
-      typeof updater === 'function'
+      typeof updater === "function"
         ? updater(oldState)
         : { ...oldState, ...updater };
 
     this.dispatchEvent(
-      new CustomEvent('change', {
+      new CustomEvent("change", {
         detail: { oldState, newState: this.#state },
-      })
+      }),
     );
   }
 
@@ -40,8 +40,8 @@ export class Store extends EventTarget {
    */
   subscribe(callback) {
     const handler = (e) => callback(e.detail.newState, e.detail.oldState);
-    this.addEventListener('change', handler);
-    return () => this.removeEventListener('change', handler);
+    this.addEventListener("change", handler);
+    return () => this.removeEventListener("change", handler);
   }
 
   /**
@@ -61,9 +61,9 @@ export class Store extends EventTarget {
   loadSnapshot(snapshot) {
     this.#state = structuredClone(snapshot);
     this.dispatchEvent(
-      new CustomEvent('change', {
+      new CustomEvent("change", {
         detail: { oldState: null, newState: this.#state },
-      })
+      }),
     );
   }
 }

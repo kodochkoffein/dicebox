@@ -68,6 +68,6 @@ export class DiceRollerContainer extends HTMLElement {
 }
 
 // Register the component
-if (!customElements.get('dice-roller-container')) {
-  customElements.define('dice-roller-container', DiceRollerContainer);
+if (!customElements.get("dice-roller-container")) {
+  customElements.define("dice-roller-container", DiceRollerContainer);
 }

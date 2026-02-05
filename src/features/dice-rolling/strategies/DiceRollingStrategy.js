@@ -17,7 +17,9 @@ export class DiceRollingStrategy {
    */
   constructor(context) {
     if (new.target === DiceRollingStrategy) {
-      throw new Error('DiceRollingStrategy is abstract and cannot be instantiated directly');
+      throw new Error(
+        "DiceRollingStrategy is abstract and cannot be instantiated directly",
+      );
     }
     this.context = context;
   }
@@ -31,7 +33,7 @@ export class DiceRollingStrategy {
    * @returns {string}
    */
   get name() {
-    throw new Error('Not implemented: name');
+    throw new Error("Not implemented: name");
   }
 
   /**
@@ -39,7 +41,7 @@ export class DiceRollingStrategy {
    * @returns {string}
    */
   get description() {
-    throw new Error('Not implemented: description');
+    throw new Error("Not implemented: description");
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -58,7 +60,9 @@ export class DiceRollingStrategy {
    * @returns {HTMLElement} A Web Component instance
    */
   createView() {
-    throw new Error('Not implemented: createView - each strategy must provide its own view');
+    throw new Error(
+      "Not implemented: createView - each strategy must provide its own view",
+    );
   }
 
   /**
@@ -67,7 +71,7 @@ export class DiceRollingStrategy {
    * @returns {string}
    */
   static get viewTagName() {
-    throw new Error('Not implemented: viewTagName');
+    throw new Error("Not implemented: viewTagName");
   }
 
   /**
@@ -75,7 +79,7 @@ export class DiceRollingStrategy {
    * @returns {typeof HTMLElement}
    */
   static get viewComponent() {
-    throw new Error('Not implemented: viewComponent');
+    throw new Error("Not implemented: viewComponent");
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -89,7 +93,7 @@ export class DiceRollingStrategy {
    * @returns {Promise<object>} Roll result
    */
   async roll(playerId, setIds) {
-    throw new Error('Not implemented: roll');
+    throw new Error("Not implemented: roll");
   }
 
   /**
@@ -99,7 +103,7 @@ export class DiceRollingStrategy {
    * @param {string} fromPeerId - Sender's peer ID
    */
   handleMessage(type, payload, fromPeerId) {
-    throw new Error('Not implemented: handleMessage');
+    throw new Error("Not implemented: handleMessage");
   }
 
   /**
@@ -108,7 +112,7 @@ export class DiceRollingStrategy {
    * @returns {object}
    */
   getState() {
-    throw new Error('Not implemented: getState');
+    throw new Error("Not implemented: getState");
   }
 
   /**
@@ -116,7 +120,7 @@ export class DiceRollingStrategy {
    * @param {object} state - State snapshot from another peer
    */
   loadState(state) {
-    throw new Error('Not implemented: loadState');
+    throw new Error("Not implemented: loadState");
   }
 
   // ─────────────────────────────────────────────────────────────

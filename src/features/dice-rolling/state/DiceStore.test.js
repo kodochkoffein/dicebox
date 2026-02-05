@@ -1,38 +1,38 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DiceStore } from './DiceStore.js';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { DiceStore } from "./DiceStore.js";
 
-describe('DiceStore', () => {
+describe("DiceStore", () => {
   let store;
 
   beforeEach(() => {
     store = new DiceStore();
   });
 
-  describe('initial state', () => {
-    it('should have empty config', () => {
+  describe("initial state", () => {
+    it("should have empty config", () => {
       expect(store.diceConfig).toEqual({
         diceSets: [],
         allowLocking: false,
       });
     });
 
-    it('should have empty values map', () => {
+    it("should have empty values map", () => {
       expect(store.diceValues.size).toBe(0);
     });
 
-    it('should have empty holders map', () => {
+    it("should have empty holders map", () => {
       expect(store.holders.size).toBe(0);
     });
 
-    it('should have empty lockedDice map', () => {
+    it("should have empty lockedDice map", () => {
       expect(store.lockedDice.size).toBe(0);
     });
   });
 
-  describe('config', () => {
-    it('should set config', () => {
+  describe("config", () => {
+    it("should set config", () => {
       const config = {
-        diceSets: [{ id: 'set1', count: 5, color: '#ff0000' }],
+        diceSets: [{ id: "set1", count: 5, color: "#ff0000" }],
         allowLocking: true,
       };
 
@@ -42,150 +42,163 @@ describe('DiceStore', () => {
     });
   });
 
-  describe('holders', () => {
-    it('should set holder for a set', () => {
-      store.setHolder('set1', 'player1', 'Alice');
+  describe("holders", () => {
+    it("should set holder for a set", () => {
+      store.setHolder("set1", "player1", "Alice");
 
-      expect(store.holders.get('set1')).toEqual({
-        playerId: 'player1',
-        username: 'Alice',
+      expect(store.holders.get("set1")).toEqual({
+        playerId: "player1",
+        username: "Alice",
       });
     });
 
-    it('should clear holder for a set', () => {
-      store.setHolder('set1', 'player1', 'Alice');
-      store.clearHolder('set1');
+    it("should clear holder for a set", () => {
+      store.setHolder("set1", "player1", "Alice");
+      store.clearHolder("set1");
 
-      expect(store.holders.has('set1')).toBe(false);
+      expect(store.holders.has("set1")).toBe(false);
     });
 
-    it('should also clear holderHasRolled when clearing holder', () => {
-      store.setHolder('set1', 'player1', 'Alice');
-      store.applyRoll({ setId: 'set1', values: [1, 2, 3], playerId: 'player1', username: 'Alice' });
+    it("should also clear holderHasRolled when clearing holder", () => {
+      store.setHolder("set1", "player1", "Alice");
+      store.applyRoll({
+        setId: "set1",
+        values: [1, 2, 3],
+        playerId: "player1",
+        username: "Alice",
+      });
 
-      expect(store.holderHasRolled.get('set1')).toBe(true);
+      expect(store.holderHasRolled.get("set1")).toBe(true);
 
-      store.clearHolder('set1');
+      store.clearHolder("set1");
 
-      expect(store.holderHasRolled.has('set1')).toBe(false);
+      expect(store.holderHasRolled.has("set1")).toBe(false);
     });
 
-    describe('tryGrab', () => {
-      it('should succeed if set is not held', () => {
-        const result = store.tryGrab('set1', 'player1', 'Alice');
+    describe("tryGrab", () => {
+      it("should succeed if set is not held", () => {
+        const result = store.tryGrab("set1", "player1", "Alice");
 
         expect(result).toBe(true);
-        expect(store.holders.get('set1')).toEqual({
-          playerId: 'player1',
-          username: 'Alice',
+        expect(store.holders.get("set1")).toEqual({
+          playerId: "player1",
+          username: "Alice",
         });
       });
 
-      it('should fail if set is already held', () => {
-        store.setHolder('set1', 'player1', 'Alice');
+      it("should fail if set is already held", () => {
+        store.setHolder("set1", "player1", "Alice");
 
-        const result = store.tryGrab('set1', 'player2', 'Bob');
+        const result = store.tryGrab("set1", "player2", "Bob");
 
         expect(result).toBe(false);
-        expect(store.holders.get('set1').playerId).toBe('player1');
+        expect(store.holders.get("set1").playerId).toBe("player1");
       });
 
-      it('should initialize holderHasRolled to false', () => {
-        store.tryGrab('set1', 'player1', 'Alice');
+      it("should initialize holderHasRolled to false", () => {
+        store.tryGrab("set1", "player1", "Alice");
 
-        expect(store.holderHasRolled.get('set1')).toBe(false);
+        expect(store.holderHasRolled.get("set1")).toBe(false);
       });
     });
   });
 
-  describe('rolling', () => {
-    it('should apply roll result', () => {
+  describe("rolling", () => {
+    it("should apply roll result", () => {
       const result = {
-        setId: 'set1',
+        setId: "set1",
         values: [1, 2, 3, 4, 5],
-        playerId: 'player1',
-        username: 'Alice',
+        playerId: "player1",
+        username: "Alice",
       };
 
       store.applyRoll(result);
 
-      expect(store.diceValues.get('set1')).toEqual([1, 2, 3, 4, 5]);
-      expect(store.lastRoller.get('set1')).toEqual({
-        playerId: 'player1',
-        username: 'Alice',
+      expect(store.diceValues.get("set1")).toEqual([1, 2, 3, 4, 5]);
+      expect(store.lastRoller.get("set1")).toEqual({
+        playerId: "player1",
+        username: "Alice",
       });
-      expect(store.holderHasRolled.get('set1')).toBe(true);
+      expect(store.holderHasRolled.get("set1")).toBe(true);
     });
 
-    it('should apply multiple rolls', () => {
+    it("should apply multiple rolls", () => {
       const results = [
-        { setId: 'set1', values: [1, 2], playerId: 'p1', username: 'A' },
-        { setId: 'set2', values: [3, 4], playerId: 'p2', username: 'B' },
+        { setId: "set1", values: [1, 2], playerId: "p1", username: "A" },
+        { setId: "set2", values: [3, 4], playerId: "p2", username: "B" },
       ];
 
       store.applyRolls(results);
 
-      expect(store.diceValues.get('set1')).toEqual([1, 2]);
-      expect(store.diceValues.get('set2')).toEqual([3, 4]);
+      expect(store.diceValues.get("set1")).toEqual([1, 2]);
+      expect(store.diceValues.get("set2")).toEqual([3, 4]);
     });
 
-    it('should notify subscribers on roll', () => {
+    it("should notify subscribers on roll", () => {
       const callback = vi.fn();
       store.subscribe(callback);
 
       store.applyRoll({
-        setId: 'set1',
+        setId: "set1",
         values: [6],
-        playerId: 'p1',
-        username: 'A',
+        playerId: "p1",
+        username: "A",
       });
 
       expect(callback).toHaveBeenCalled();
     });
   });
 
-  describe('locking', () => {
+  describe("locking", () => {
     beforeEach(() => {
-      store.setConfig({ diceSets: [{ id: 'set1', count: 5, color: '#fff' }], allowLocking: true });
-      store.applyRoll({ setId: 'set1', values: [1, 2, 3, 4, 5], playerId: 'p1', username: 'A' });
+      store.setConfig({
+        diceSets: [{ id: "set1", count: 5, color: "#fff" }],
+        allowLocking: true,
+      });
+      store.applyRoll({
+        setId: "set1",
+        values: [1, 2, 3, 4, 5],
+        playerId: "p1",
+        username: "A",
+      });
     });
 
-    it('should lock a die', () => {
-      store.setLock('set1', 2, true);
+    it("should lock a die", () => {
+      store.setLock("set1", 2, true);
 
-      expect(store.lockedDice.get('set1').has(2)).toBe(true);
+      expect(store.lockedDice.get("set1").has(2)).toBe(true);
     });
 
-    it('should unlock a die', () => {
-      store.setLock('set1', 2, true);
-      store.setLock('set1', 2, false);
+    it("should unlock a die", () => {
+      store.setLock("set1", 2, true);
+      store.setLock("set1", 2, false);
 
-      expect(store.lockedDice.get('set1').has(2)).toBe(false);
+      expect(store.lockedDice.get("set1").has(2)).toBe(false);
     });
 
-    it('should toggle lock', () => {
-      store.toggleLock('set1', 0);
-      expect(store.lockedDice.get('set1').has(0)).toBe(true);
+    it("should toggle lock", () => {
+      store.toggleLock("set1", 0);
+      expect(store.lockedDice.get("set1").has(0)).toBe(true);
 
-      store.toggleLock('set1', 0);
-      expect(store.lockedDice.get('set1').has(0)).toBe(false);
+      store.toggleLock("set1", 0);
+      expect(store.lockedDice.get("set1").has(0)).toBe(false);
     });
 
-    it('should clear all locks for a set', () => {
-      store.setLock('set1', 0, true);
-      store.setLock('set1', 2, true);
-      store.setLock('set1', 4, true);
+    it("should clear all locks for a set", () => {
+      store.setLock("set1", 0, true);
+      store.setLock("set1", 2, true);
+      store.setLock("set1", 4, true);
 
-      store.clearLocks('set1');
+      store.clearLocks("set1");
 
-      expect(store.lockedDice.has('set1')).toBe(false);
+      expect(store.lockedDice.has("set1")).toBe(false);
     });
 
-    it('should lock multiple dice independently', () => {
-      store.setLock('set1', 0, true);
-      store.setLock('set1', 3, true);
+    it("should lock multiple dice independently", () => {
+      store.setLock("set1", 0, true);
+      store.setLock("set1", 3, true);
 
-      const locked = store.lockedDice.get('set1');
+      const locked = store.lockedDice.get("set1");
       expect(locked.has(0)).toBe(true);
       expect(locked.has(3)).toBe(true);
       expect(locked.has(1)).toBe(false);
@@ -193,42 +206,57 @@ describe('DiceStore', () => {
     });
   });
 
-  describe('serialization', () => {
-    it('should create snapshot with Maps converted to objects', () => {
-      store.setConfig({ diceSets: [{ id: 's1', count: 3, color: '#f00' }], allowLocking: true });
-      store.setHolder('s1', 'p1', 'Alice');
-      store.applyRoll({ setId: 's1', values: [1, 2, 3], playerId: 'p1', username: 'Alice' });
-      store.setLock('s1', 1, true);
+  describe("serialization", () => {
+    it("should create snapshot with Maps converted to objects", () => {
+      store.setConfig({
+        diceSets: [{ id: "s1", count: 3, color: "#f00" }],
+        allowLocking: true,
+      });
+      store.setHolder("s1", "p1", "Alice");
+      store.applyRoll({
+        setId: "s1",
+        values: [1, 2, 3],
+        playerId: "p1",
+        username: "Alice",
+      });
+      store.setLock("s1", 1, true);
 
       const snapshot = store.getSnapshot();
 
       expect(snapshot.config.diceSets).toHaveLength(1);
       expect(snapshot.values).toEqual({ s1: [1, 2, 3] });
-      expect(snapshot.holders).toEqual({ s1: { playerId: 'p1', username: 'Alice' } });
+      expect(snapshot.holders).toEqual({
+        s1: { playerId: "p1", username: "Alice" },
+      });
       expect(snapshot.lockedDice).toEqual({ s1: [1] });
-      expect(snapshot.lastRoller).toEqual({ s1: { playerId: 'p1', username: 'Alice' } });
+      expect(snapshot.lastRoller).toEqual({
+        s1: { playerId: "p1", username: "Alice" },
+      });
     });
 
-    it('should load snapshot and restore Maps', () => {
+    it("should load snapshot and restore Maps", () => {
       const snapshot = {
-        config: { diceSets: [{ id: 's1', count: 2, color: '#0f0' }], allowLocking: false },
+        config: {
+          diceSets: [{ id: "s1", count: 2, color: "#0f0" }],
+          allowLocking: false,
+        },
         values: { s1: [4, 5] },
-        holders: { s1: { playerId: 'p2', username: 'Bob' } },
+        holders: { s1: { playerId: "p2", username: "Bob" } },
         lockedDice: { s1: [0] },
-        lastRoller: { s1: { playerId: 'p2', username: 'Bob' } },
+        lastRoller: { s1: { playerId: "p2", username: "Bob" } },
         holderHasRolled: { s1: true },
       };
 
       store.loadSnapshot(snapshot);
 
-      expect(store.diceConfig.diceSets[0].id).toBe('s1');
-      expect(store.diceValues.get('s1')).toEqual([4, 5]);
-      expect(store.holders.get('s1').playerId).toBe('p2');
-      expect(store.lockedDice.get('s1').has(0)).toBe(true);
-      expect(store.lastRoller.get('s1').username).toBe('Bob');
+      expect(store.diceConfig.diceSets[0].id).toBe("s1");
+      expect(store.diceValues.get("s1")).toEqual([4, 5]);
+      expect(store.holders.get("s1").playerId).toBe("p2");
+      expect(store.lockedDice.get("s1").has(0)).toBe(true);
+      expect(store.lastRoller.get("s1").username).toBe("Bob");
     });
 
-    it('should handle empty snapshot gracefully', () => {
+    it("should handle empty snapshot gracefully", () => {
       const snapshot = { config: { diceSets: [], allowLocking: false } };
 
       store.loadSnapshot(snapshot);
@@ -238,11 +266,19 @@ describe('DiceStore', () => {
     });
   });
 
-  describe('reset', () => {
-    it('should reset to initial state', () => {
-      store.setConfig({ diceSets: [{ id: 's1', count: 5, color: '#f00' }], allowLocking: true });
-      store.setHolder('s1', 'p1', 'Alice');
-      store.applyRoll({ setId: 's1', values: [1, 2, 3, 4, 5], playerId: 'p1', username: 'Alice' });
+  describe("reset", () => {
+    it("should reset to initial state", () => {
+      store.setConfig({
+        diceSets: [{ id: "s1", count: 5, color: "#f00" }],
+        allowLocking: true,
+      });
+      store.setHolder("s1", "p1", "Alice");
+      store.applyRoll({
+        setId: "s1",
+        values: [1, 2, 3, 4, 5],
+        playerId: "p1",
+        username: "Alice",
+      });
 
       store.reset();
 

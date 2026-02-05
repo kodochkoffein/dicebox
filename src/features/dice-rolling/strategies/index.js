@@ -2,24 +2,24 @@
  * Strategy registry - maps strategy IDs to strategy classes.
  */
 
-import { GrabAndRollStrategy } from './grab-and-roll/GrabAndRollStrategy.js';
-import { DragSelectStrategy } from './drag-select/DragSelectStrategy.js';
-import { DragPickupStrategy } from './drag-pickup/DragPickupStrategy.js';
+import { GrabAndRollStrategy } from "./grab-and-roll/GrabAndRollStrategy.js";
+import { DragSelectStrategy } from "./drag-select/DragSelectStrategy.js";
+import { DragPickupStrategy } from "./drag-pickup/DragPickupStrategy.js";
 
 /**
  * Available dice rolling strategies.
  * Add new strategies here to make them available in the app.
  */
 export const strategies = {
-  'grab-and-roll': GrabAndRollStrategy,
-  'drag-select': DragSelectStrategy,
-  'drag-pickup': DragPickupStrategy,
+  "grab-and-roll": GrabAndRollStrategy,
+  "drag-select": DragSelectStrategy,
+  "drag-pickup": DragPickupStrategy,
 };
 
 /**
  * Default strategy ID.
  */
-export const DEFAULT_STRATEGY = 'grab-and-roll';
+export const DEFAULT_STRATEGY = "grab-and-roll";
 
 /**
  * Create a strategy instance by ID.
@@ -32,7 +32,9 @@ export const DEFAULT_STRATEGY = 'grab-and-roll';
 export function createStrategy(strategyId, context) {
   const Strategy = strategies[strategyId];
   if (!Strategy) {
-    throw new Error(`Unknown strategy: ${strategyId}. Available: ${Object.keys(strategies).join(', ')}`);
+    throw new Error(
+      `Unknown strategy: ${strategyId}. Available: ${Object.keys(strategies).join(", ")}`,
+    );
   }
   return new Strategy(context);
 }
