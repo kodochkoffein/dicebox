@@ -1,4 +1,4 @@
-import '../../../../ui/components/dice/Die.js';
+import "../../../../ui/components/dice/Die.js";
 
 /**
  * View component for the "Drag to Select" strategy.
@@ -28,22 +28,22 @@ export class DragSelectView extends HTMLElement {
   connectedCallback() {
     // Subscribe to state changes
     this.#unsubscribeState = this.#strategy.context.state.subscribe(() =>
-      this.render()
+      this.render(),
     );
 
     // Subscribe to selection changes
     this.#unsubscribeSelection = this.#strategy.onSelectionChange(() =>
-      this.#updateSelectionUI()
+      this.#updateSelectionUI(),
     );
 
     // Pointer events for drag selection
-    this.addEventListener('pointerdown', this.#onPointerDown);
-    this.addEventListener('pointermove', this.#onPointerMove);
-    this.addEventListener('pointerup', this.#onPointerUp);
-    this.addEventListener('pointercancel', this.#onPointerUp);
+    this.addEventListener("pointerdown", this.#onPointerDown);
+    this.addEventListener("pointermove", this.#onPointerMove);
+    this.addEventListener("pointerup", this.#onPointerUp);
+    this.addEventListener("pointercancel", this.#onPointerUp);
 
     // Click events
-    this.addEventListener('click', this.#onClick);
+    this.addEventListener("click", this.#onClick);
 
     this.render();
   }
@@ -51,11 +51,11 @@ export class DragSelectView extends HTMLElement {
   disconnectedCallback() {
     this.#unsubscribeState?.();
     this.#unsubscribeSelection?.();
-    this.removeEventListener('pointerdown', this.#onPointerDown);
-    this.removeEventListener('pointermove', this.#onPointerMove);
-    this.removeEventListener('pointerup', this.#onPointerUp);
-    this.removeEventListener('pointercancel', this.#onPointerUp);
-    this.removeEventListener('click', this.#onClick);
+    this.removeEventListener("pointerdown", this.#onPointerDown);
+    this.removeEventListener("pointermove", this.#onPointerMove);
+    this.removeEventListener("pointerup", this.#onPointerUp);
+    this.removeEventListener("pointercancel", this.#onPointerUp);
+    this.removeEventListener("click", this.#onClick);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -64,10 +64,10 @@ export class DragSelectView extends HTMLElement {
 
   #onPointerDown = (e) => {
     // Ignore if clicking on a button
-    if (e.target.closest('button')) return;
+    if (e.target.closest("button")) return;
 
     // Ignore if clicking on a die (handled by click event)
-    if (e.target.closest('[data-die-id]')) return;
+    if (e.target.closest("[data-die-id]")) return;
 
     this.#isDragging = true;
     this.#dragStart = { x: e.clientX, y: e.clientY };
@@ -96,7 +96,7 @@ export class DragSelectView extends HTMLElement {
     // If we have a selection and dragged more than a small threshold, roll
     const dragDistance = Math.hypot(
       this.#dragEnd.x - this.#dragStart.x,
-      this.#dragEnd.y - this.#dragStart.y
+      this.#dragEnd.y - this.#dragStart.y,
     );
 
     if (dragDistance > 20 && this.#strategy.getSelection().size > 0) {
@@ -109,10 +109,10 @@ export class DragSelectView extends HTMLElement {
     const selectedIds = [];
 
     // Check which dice intersect with selection rectangle
-    const dicePool = this.querySelector('.dice-pool');
+    const dicePool = this.querySelector(".dice-pool");
     if (!dicePool) return;
 
-    const diceWrappers = dicePool.querySelectorAll('[data-die-id]');
+    const diceWrappers = dicePool.querySelectorAll("[data-die-id]");
     diceWrappers.forEach((wrapper) => {
       const dieRect = wrapper.getBoundingClientRect();
       if (this.#rectsIntersect(rect, dieRect)) {
@@ -144,10 +144,10 @@ export class DragSelectView extends HTMLElement {
   }
 
   #renderSelectionRect() {
-    let rect = this.querySelector('.selection-rect');
+    let rect = this.querySelector(".selection-rect");
     if (!rect) {
-      rect = document.createElement('div');
-      rect.className = 'selection-rect';
+      rect = document.createElement("div");
+      rect.className = "selection-rect";
       this.appendChild(rect);
     }
 
@@ -166,7 +166,7 @@ export class DragSelectView extends HTMLElement {
   }
 
   #hideSelectionRect() {
-    this.querySelector('.selection-rect')?.remove();
+    this.querySelector(".selection-rect")?.remove();
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -175,25 +175,25 @@ export class DragSelectView extends HTMLElement {
 
   #onClick = (e) => {
     // Roll selected button
-    if (e.target.closest('.roll-selected-btn')) {
+    if (e.target.closest(".roll-selected-btn")) {
       this.#strategy.rollSelection();
       return;
     }
 
     // Roll all button
-    if (e.target.closest('.roll-all-btn')) {
+    if (e.target.closest(".roll-all-btn")) {
       this.#strategy.rollAll();
       return;
     }
 
     // Clear selection button
-    if (e.target.closest('.clear-selection-btn')) {
+    if (e.target.closest(".clear-selection-btn")) {
       this.#strategy.clearSelection();
       return;
     }
 
     // Click on die to toggle selection
-    const dieWrapper = e.target.closest('[data-die-id]');
+    const dieWrapper = e.target.closest("[data-die-id]");
     if (dieWrapper) {
       this.#strategy.toggleSelection(dieWrapper.dataset.dieId);
     }
@@ -345,21 +345,21 @@ export class DragSelectView extends HTMLElement {
         </div>
 
         <div class="controls">
-          <button class="roll-selected-btn" ${!hasSelection ? 'disabled' : ''}>
+          <button class="roll-selected-btn" ${!hasSelection ? "disabled" : ""}>
             Roll Selected (${selection.size})
           </button>
           <button class="roll-all-btn">Roll All</button>
-          <button class="clear-selection-btn" ${!hasSelection ? 'disabled' : ''}>
+          <button class="clear-selection-btn" ${!hasSelection ? "disabled" : ""}>
             Clear
           </button>
         </div>
 
         <div class="dice-pool">
-          ${allDice.map((die) => this.#renderDie(die, selection.has(die.id))).join('')}
+          ${allDice.map((die) => this.#renderDie(die, selection.has(die.id))).join("")}
         </div>
 
         <div class="selection-count">
-          ${hasSelection ? `${selection.size} dice selected` : 'No dice selected'}
+          ${hasSelection ? `${selection.size} dice selected` : "No dice selected"}
         </div>
 
         <div class="set-labels">
@@ -371,12 +371,12 @@ export class DragSelectView extends HTMLElement {
 
   #renderDie(die, isSelected) {
     return `
-      <div class="die-wrapper ${isSelected ? 'die-wrapper--selected' : ''}"
+      <div class="die-wrapper ${isSelected ? "die-wrapper--selected" : ""}"
            data-die-id="${die.id}">
         <dice-die
-          value="${die.value || ''}"
+          value="${die.value || ""}"
           color="${die.color}"
-          ${isSelected ? 'selected' : ''}
+          ${isSelected ? "selected" : ""}
         ></dice-die>
       </div>
     `;
@@ -391,34 +391,34 @@ export class DragSelectView extends HTMLElement {
         <div class="set-label__color" style="background: ${set.color}"></div>
         <span>${set.id}</span>
       </div>
-    `
+    `,
       )
-      .join('');
+      .join("");
   }
 
   #updateSelectionUI() {
     const selection = this.#strategy.getSelection();
 
     // Update die wrapper classes
-    this.querySelectorAll('[data-die-id]').forEach((wrapper) => {
+    this.querySelectorAll("[data-die-id]").forEach((wrapper) => {
       const isSelected = selection.has(wrapper.dataset.dieId);
-      wrapper.classList.toggle('die-wrapper--selected', isSelected);
+      wrapper.classList.toggle("die-wrapper--selected", isSelected);
 
       // Update the dice-die element's selected attribute
-      const dieEl = wrapper.querySelector('dice-die');
+      const dieEl = wrapper.querySelector("dice-die");
       if (dieEl) {
         if (isSelected) {
-          dieEl.setAttribute('selected', '');
+          dieEl.setAttribute("selected", "");
         } else {
-          dieEl.removeAttribute('selected');
+          dieEl.removeAttribute("selected");
         }
       }
     });
 
     // Update buttons
-    const rollSelectedBtn = this.querySelector('.roll-selected-btn');
-    const clearBtn = this.querySelector('.clear-selection-btn');
-    const countEl = this.querySelector('.selection-count');
+    const rollSelectedBtn = this.querySelector(".roll-selected-btn");
+    const clearBtn = this.querySelector(".clear-selection-btn");
+    const countEl = this.querySelector(".selection-count");
 
     if (rollSelectedBtn) {
       rollSelectedBtn.disabled = selection.size === 0;
@@ -433,12 +433,12 @@ export class DragSelectView extends HTMLElement {
       countEl.textContent =
         selection.size > 0
           ? `${selection.size} dice selected`
-          : 'No dice selected';
+          : "No dice selected";
     }
   }
 }
 
 // Register the component
-if (!customElements.get('dice-drag-select')) {
-  customElements.define('dice-drag-select', DragSelectView);
+if (!customElements.get("dice-drag-select")) {
+  customElements.define("dice-drag-select", DragSelectView);
 }

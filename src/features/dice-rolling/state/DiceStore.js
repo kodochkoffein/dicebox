@@ -1,4 +1,4 @@
-import { Store } from '../../../infrastructure/state/core/Store.js';
+import { Store } from "../../../infrastructure/state/core/Store.js";
 
 /**
  * Initial state for the dice store.
@@ -197,7 +197,7 @@ export class DiceStore extends Store {
       values: Object.fromEntries(state.values),
       holders: Object.fromEntries(state.holders),
       lockedDice: Object.fromEntries(
-        [...state.lockedDice].map(([k, v]) => [k, [...v]])
+        [...state.lockedDice].map(([k, v]) => [k, [...v]]),
       ),
       lastRoller: Object.fromEntries(state.lastRoller),
       holderHasRolled: Object.fromEntries(state.holderHasRolled),
@@ -210,7 +210,10 @@ export class DiceStore extends Store {
       values: new Map(Object.entries(snapshot.values || {})),
       holders: new Map(Object.entries(snapshot.holders || {})),
       lockedDice: new Map(
-        Object.entries(snapshot.lockedDice || {}).map(([k, v]) => [k, new Set(v)])
+        Object.entries(snapshot.lockedDice || {}).map(([k, v]) => [
+          k,
+          new Set(v),
+        ]),
       ),
       lastRoller: new Map(Object.entries(snapshot.lastRoller || {})),
       holderHasRolled: new Map(Object.entries(snapshot.holderHasRolled || {})),

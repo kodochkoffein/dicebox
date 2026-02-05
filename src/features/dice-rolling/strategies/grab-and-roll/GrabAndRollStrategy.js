@@ -1,5 +1,5 @@
-import { DiceRollingStrategy } from '../DiceRollingStrategy.js';
-import { GrabAndRollView } from './GrabAndRollView.js';
+import { DiceRollingStrategy } from "../DiceRollingStrategy.js";
+import { GrabAndRollView } from "./GrabAndRollView.js";
 
 /**
  * "Grab and Roll" strategy - the original DiceBox UX.
@@ -9,11 +9,11 @@ import { GrabAndRollView } from './GrabAndRollView.js';
  */
 export class GrabAndRollStrategy extends DiceRollingStrategy {
   get name() {
-    return 'Grab and Roll';
+    return "Grab and Roll";
   }
 
   get description() {
-    return 'Players grab dice sets, then roll together when all sets are held.';
+    return "Players grab dice sets, then roll together when all sets are held.";
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -21,7 +21,7 @@ export class GrabAndRollStrategy extends DiceRollingStrategy {
   // ─────────────────────────────────────────────────────────────
 
   static get viewTagName() {
-    return 'dice-grab-and-roll';
+    return "dice-grab-and-roll";
   }
 
   static get viewComponent() {
@@ -29,7 +29,7 @@ export class GrabAndRollStrategy extends DiceRollingStrategy {
   }
 
   createView() {
-    const view = document.createElement('dice-grab-and-roll');
+    const view = document.createElement("dice-grab-and-roll");
     view.setStrategy(this);
     return view;
   }
@@ -48,7 +48,7 @@ export class GrabAndRollStrategy extends DiceRollingStrategy {
     if (!holder) {
       // Try to grab the set
       if (state.tryGrab(setId, localPlayer.id, localPlayer.username)) {
-        network.broadcast('dice:grab', {
+        network.broadcast("dice:grab", {
           setId,
           playerId: localPlayer.id,
           username: localPlayer.username,
@@ -61,7 +61,7 @@ export class GrabAndRollStrategy extends DiceRollingStrategy {
       } else {
         // Drop the set
         state.clearHolder(setId);
-        network.broadcast('dice:drop', { setId });
+        network.broadcast("dice:drop", { setId });
       }
     }
   }
@@ -79,7 +79,7 @@ export class GrabAndRollStrategy extends DiceRollingStrategy {
     state.toggleLock(setId, dieIndex);
 
     const isLocked = state.lockedDice.get(setId)?.has(dieIndex) ?? false;
-    network.broadcast('dice:lock', {
+    network.broadcast("dice:lock", {
       setId,
       dieIndex,
       locked: isLocked,
@@ -99,7 +99,7 @@ export class GrabAndRollStrategy extends DiceRollingStrategy {
 
     // Player must hold at least one set
     const playerHoldsAny = [...state.holders.values()].some(
-      (h) => h.playerId === localPlayer.id
+      (h) => h.playerId === localPlayer.id,
     );
     return playerHoldsAny;
   }
@@ -190,7 +190,7 @@ export class GrabAndRollStrategy extends DiceRollingStrategy {
 
     // Broadcast all results
     for (const result of results) {
-      network.broadcast('dice:roll', result);
+      network.broadcast("dice:roll", result);
     }
 
     return results;
@@ -200,19 +200,19 @@ export class GrabAndRollStrategy extends DiceRollingStrategy {
     const { state } = this.context;
 
     switch (type) {
-      case 'dice:grab':
+      case "dice:grab":
         state.setHolder(payload.setId, payload.playerId, payload.username);
         break;
 
-      case 'dice:drop':
+      case "dice:drop":
         state.clearHolder(payload.setId);
         break;
 
-      case 'dice:roll':
+      case "dice:roll":
         state.applyRoll(payload);
         break;
 
-      case 'dice:lock':
+      case "dice:lock":
         state.setLock(payload.setId, payload.dieIndex, payload.locked);
         break;
     }

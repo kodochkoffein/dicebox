@@ -5,7 +5,7 @@
  */
 
 // Base class
-export { DiceRollingStrategy } from './strategies/DiceRollingStrategy.js';
+export { DiceRollingStrategy } from "./strategies/DiceRollingStrategy.js";
 
 // Strategy registry
 export {
@@ -13,11 +13,11 @@ export {
   DEFAULT_STRATEGY,
   createStrategy,
   getAvailableStrategies,
-} from './strategies/index.js';
+} from "./strategies/index.js";
 
 // Concrete strategies
-export { GrabAndRollStrategy } from './strategies/grab-and-roll/GrabAndRollStrategy.js';
-export { DragSelectStrategy } from './strategies/drag-select/DragSelectStrategy.js';
+export { GrabAndRollStrategy } from "./strategies/grab-and-roll/GrabAndRollStrategy.js";
+export { DragSelectStrategy } from "./strategies/drag-select/DragSelectStrategy.js";
 
 // State
-export { DiceStore } from './state/DiceStore.js';
+export { DiceStore } from "./state/DiceStore.js";

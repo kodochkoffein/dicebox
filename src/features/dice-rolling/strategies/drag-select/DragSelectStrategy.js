@@ -1,5 +1,5 @@
-import { DiceRollingStrategy } from '../DiceRollingStrategy.js';
-import { DragSelectView } from './DragSelectView.js';
+import { DiceRollingStrategy } from "../DiceRollingStrategy.js";
+import { DragSelectView } from "./DragSelectView.js";
 
 /**
  * "Drag to Select" strategy - an alternative UX paradigm.
@@ -16,11 +16,11 @@ export class DragSelectStrategy extends DiceRollingStrategy {
   #selectionListeners = new Set();
 
   get name() {
-    return 'Drag to Select';
+    return "Drag to Select";
   }
 
   get description() {
-    return 'Drag to select dice, then release to roll your selection. Anyone can roll anytime.';
+    return "Drag to select dice, then release to roll your selection. Anyone can roll anytime.";
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ export class DragSelectStrategy extends DiceRollingStrategy {
   // ─────────────────────────────────────────────────────────────
 
   static get viewTagName() {
-    return 'dice-drag-select';
+    return "dice-drag-select";
   }
 
   static get viewComponent() {
@@ -36,7 +36,7 @@ export class DragSelectStrategy extends DiceRollingStrategy {
   }
 
   createView() {
-    const view = document.createElement('dice-drag-select');
+    const view = document.createElement("dice-drag-select");
     view.setStrategy(this);
     return view;
   }
@@ -165,7 +165,7 @@ export class DragSelectStrategy extends DiceRollingStrategy {
     // Group dice by set
     const diceBySet = new Map();
     for (const dieId of diceIds) {
-      const [setId, indexStr] = dieId.split('-');
+      const [setId, indexStr] = dieId.split("-");
       const index = parseInt(indexStr);
       if (!diceBySet.has(setId)) {
         diceBySet.set(setId, []);
@@ -205,7 +205,7 @@ export class DragSelectStrategy extends DiceRollingStrategy {
 
       results.push(result);
       state.applyRoll(result);
-      network.broadcast('dice:roll', result);
+      network.broadcast("dice:roll", result);
     }
 
     return results;
@@ -250,7 +250,7 @@ export class DragSelectStrategy extends DiceRollingStrategy {
   handleMessage(type, payload, fromPeerId) {
     const { state } = this.context;
 
-    if (type === 'dice:roll') {
+    if (type === "dice:roll") {
       state.applyRoll(payload);
     }
     // Note: No grab/drop messages in this strategy

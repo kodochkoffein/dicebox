@@ -36,7 +36,7 @@ export class NetworkAdapter {
 
   #setupMessageListener() {
     // Listen for messages from webrtcManager
-    this.#webrtcManager.addEventListener('message', (e) => {
+    this.#webrtcManager.addEventListener("message", (e) => {
       const { peerId, message } = e.detail;
       this.#handleIncomingMessage(peerId, message);
     });
@@ -71,15 +71,15 @@ export class NetworkAdapter {
    */
   #legacyTypeToNewType(legacyType) {
     const mappings = {
-      'dice-roll': 'dice:roll',
-      'dice-grab': 'dice:grab',
-      'dice-drop': 'dice:drop',
-      'dice-lock': 'dice:lock',
-      'hello': 'peer:hello',
-      'welcome': 'peer:welcome',
-      'request-state': 'peer:request-state',
-      'peer-joined': 'peer:joined',
-      'peer-left': 'peer:left',
+      "dice-roll": "dice:roll",
+      "dice-grab": "dice:grab",
+      "dice-drop": "dice:drop",
+      "dice-lock": "dice:lock",
+      hello: "peer:hello",
+      welcome: "peer:welcome",
+      "request-state": "peer:request-state",
+      "peer-joined": "peer:joined",
+      "peer-left": "peer:left",
     };
     return mappings[legacyType] || legacyType;
   }
@@ -91,15 +91,15 @@ export class NetworkAdapter {
    */
   #newTypeToLegacyType(newType) {
     const mappings = {
-      'dice:roll': 'dice-roll',
-      'dice:grab': 'dice-grab',
-      'dice:drop': 'dice-drop',
-      'dice:lock': 'dice-lock',
-      'peer:hello': 'hello',
-      'peer:welcome': 'welcome',
-      'peer:request-state': 'request-state',
-      'peer:joined': 'peer-joined',
-      'peer:left': 'peer-left',
+      "dice:roll": "dice-roll",
+      "dice:grab": "dice-grab",
+      "dice:drop": "dice-drop",
+      "dice:lock": "dice-lock",
+      "peer:hello": "hello",
+      "peer:welcome": "welcome",
+      "peer:request-state": "request-state",
+      "peer:joined": "peer-joined",
+      "peer:left": "peer-left",
     };
     return mappings[newType] || newType;
   }
@@ -176,7 +176,10 @@ export class NetworkAdapter {
    */
   isConnected() {
     // For legacy integration, check if webrtcManager has connections
-    if (this.#webrtcManager && typeof this.#webrtcManager.getConnectedPeers === 'function') {
+    if (
+      this.#webrtcManager &&
+      typeof this.#webrtcManager.getConnectedPeers === "function"
+    ) {
       return this.#webrtcManager.getConnectedPeers().length > 0;
     }
     return false;
@@ -188,7 +191,10 @@ export class NetworkAdapter {
    * @returns {string[]}
    */
   getConnectedPeers() {
-    if (this.#webrtcManager && typeof this.#webrtcManager.getConnectedPeers === 'function') {
+    if (
+      this.#webrtcManager &&
+      typeof this.#webrtcManager.getConnectedPeers === "function"
+    ) {
       return this.#webrtcManager.getConnectedPeers();
     }
     return [];

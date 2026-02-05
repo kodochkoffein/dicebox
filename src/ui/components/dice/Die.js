@@ -14,12 +14,12 @@
  */
 export class Die extends HTMLElement {
   static get observedAttributes() {
-    return ['value', 'color', 'locked', 'selected', 'rolling'];
+    return ["value", "color", "locked", "selected", "rolling"];
   }
 
   constructor() {
     super();
-    this.attachShadow({ mode: 'open' });
+    this.attachShadow({ mode: "open" });
   }
 
   connectedCallback() {
@@ -31,11 +31,11 @@ export class Die extends HTMLElement {
   }
 
   render() {
-    const value = this.getAttribute('value');
-    const color = this.getAttribute('color') || '#ffffff';
-    const locked = this.hasAttribute('locked');
-    const selected = this.hasAttribute('selected');
-    const rolling = this.hasAttribute('rolling');
+    const value = this.getAttribute("value");
+    const color = this.getAttribute("color") || "#ffffff";
+    const locked = this.hasAttribute("locked");
+    const selected = this.hasAttribute("selected");
+    const rolling = this.hasAttribute("rolling");
 
     const pipColor = this.#getPipColor(color);
 
@@ -105,18 +105,18 @@ export class Die extends HTMLElement {
         }
       </style>
 
-      <div class="die ${locked ? 'die--locked' : ''} ${selected ? 'die--selected' : ''} ${rolling ? 'die--rolling' : ''}"
+      <div class="die ${locked ? "die--locked" : ""} ${selected ? "die--selected" : ""} ${rolling ? "die--rolling" : ""}"
            style="--die-color: ${color}">
         <div class="die__face">
-          ${value ? this.#renderFace(parseInt(value), pipColor) : ''}
+          ${value ? this.#renderFace(parseInt(value), pipColor) : ""}
         </div>
-        ${locked ? '<div class="die__lock-icon">🔒</div>' : ''}
+        ${locked ? '<div class="die__lock-icon">🔒</div>' : ""}
       </div>
     `;
   }
 
   #renderFace(value, pipColor) {
-    if (value < 1 || value > 6) return '';
+    if (value < 1 || value > 6) return "";
 
     const pipPositions = {
       topLeft: { cx: 14, cy: 14 },
@@ -129,12 +129,19 @@ export class Die extends HTMLElement {
     };
 
     const pipConfigs = {
-      1: ['center'],
-      2: ['topRight', 'bottomLeft'],
-      3: ['topRight', 'center', 'bottomLeft'],
-      4: ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'],
-      5: ['topLeft', 'topRight', 'center', 'bottomLeft', 'bottomRight'],
-      6: ['topLeft', 'topRight', 'midLeft', 'midRight', 'bottomLeft', 'bottomRight'],
+      1: ["center"],
+      2: ["topRight", "bottomLeft"],
+      3: ["topRight", "center", "bottomLeft"],
+      4: ["topLeft", "topRight", "bottomLeft", "bottomRight"],
+      5: ["topLeft", "topRight", "center", "bottomLeft", "bottomRight"],
+      6: [
+        "topLeft",
+        "topRight",
+        "midLeft",
+        "midRight",
+        "bottomLeft",
+        "bottomRight",
+      ],
     };
 
     const pips = pipConfigs[value]
@@ -142,21 +149,25 @@ export class Die extends HTMLElement {
         const p = pipPositions[pos];
         return `<circle cx="${p.cx}" cy="${p.cy}" r="5" fill="${pipColor}"/>`;
       })
-      .join('');
+      .join("");
 
     return `<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">${pips}</svg>`;
   }
 
   #getPipColor(diceColor) {
     // Light colors get dark pips
-    if (diceColor === '#ffffff' || diceColor === '#eab308' || diceColor === '#fef9c3') {
-      return '#0f172a';
+    if (
+      diceColor === "#ffffff" ||
+      diceColor === "#eab308" ||
+      diceColor === "#fef9c3"
+    ) {
+      return "#0f172a";
     }
-    return '#ffffff';
+    return "#ffffff";
   }
 }
 
 // Register the component
-if (!customElements.get('dice-die')) {
-  customElements.define('dice-die', Die);
+if (!customElements.get("dice-die")) {
+  customElements.define("dice-die", Die);
 }

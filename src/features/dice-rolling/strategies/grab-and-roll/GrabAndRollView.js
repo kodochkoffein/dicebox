@@ -1,4 +1,4 @@
-import '../../../../ui/components/dice/Die.js';
+import "../../../../ui/components/dice/Die.js";
 
 /**
  * View component for the "Grab and Roll" strategy.
@@ -19,23 +19,23 @@ export class GrabAndRollView extends HTMLElement {
   connectedCallback() {
     // Subscribe to state changes
     this.#unsubscribe = this.#strategy.context.state.subscribe(() =>
-      this.render()
+      this.render(),
     );
 
     // Event delegation for clicks
-    this.addEventListener('click', this.#handleClick);
+    this.addEventListener("click", this.#handleClick);
 
     this.render();
   }
 
   disconnectedCallback() {
     this.#unsubscribe?.();
-    this.removeEventListener('click', this.#handleClick);
+    this.removeEventListener("click", this.#handleClick);
   }
 
   #handleClick = (e) => {
     // Handle die lock click
-    const dieEl = e.target.closest('[data-die-index]');
+    const dieEl = e.target.closest("[data-die-index]");
     if (dieEl) {
       const setId = dieEl.dataset.setId;
       const dieIndex = parseInt(dieEl.dataset.dieIndex);
@@ -44,7 +44,7 @@ export class GrabAndRollView extends HTMLElement {
     }
 
     // Handle set click (grab/drop/roll)
-    const setEl = e.target.closest('[data-set-id]');
+    const setEl = e.target.closest("[data-set-id]");
     if (setEl) {
       this.#strategy.handleSetClick(setEl.dataset.setId);
     }
@@ -154,7 +154,7 @@ export class GrabAndRollView extends HTMLElement {
 
       <div class="grab-and-roll">
         <div class="dice-sets">
-          ${diceSets.map((set) => this.#renderSet(set, canRoll)).join('')}
+          ${diceSets.map((set) => this.#renderSet(set, canRoll)).join("")}
         </div>
       </div>
     `;
@@ -173,55 +173,55 @@ export class GrabAndRollView extends HTMLElement {
 
     const holderText = holder
       ? isHeldByMe
-        ? 'You'
+        ? "You"
         : holder.username
-      : 'Available';
+      : "Available";
 
     const classes = [
-      'dice-set',
-      isHeld ? 'dice-set--held' : '',
-      isHeldByMe ? 'dice-set--held-by-me' : '',
-      isReadyToRoll ? 'dice-set--ready-to-roll' : '',
+      "dice-set",
+      isHeld ? "dice-set--held" : "",
+      isHeldByMe ? "dice-set--held-by-me" : "",
+      isReadyToRoll ? "dice-set--ready-to-roll" : "",
     ]
       .filter(Boolean)
-      .join(' ');
+      .join(" ");
 
     return `
       <div class="${classes}"
            data-set-id="${set.id}"
            style="--set-color: ${set.color}">
         <div class="dice-set__header">
-          <span class="dice-set__holder ${isHeldByMe ? 'dice-set__holder--me' : ''}">
+          <span class="dice-set__holder ${isHeldByMe ? "dice-set__holder--me" : ""}">
             ${holderText}
           </span>
         </div>
         <div class="dice-set__dice">
           ${Array.from({ length: set.count }, (_, i) =>
-            this.#renderDie(set, i, values[i], lockedIndices.has(i), canLock)
-          ).join('')}
+            this.#renderDie(set, i, values[i], lockedIndices.has(i), canLock),
+          ).join("")}
         </div>
-        ${isReadyToRoll ? '<div class="dice-set__roll-hint">Click to roll!</div>' : ''}
-        ${!isHeld ? '<div class="dice-set__grab-hint">Click to grab</div>' : ''}
+        ${isReadyToRoll ? '<div class="dice-set__roll-hint">Click to roll!</div>' : ""}
+        ${!isHeld ? '<div class="dice-set__grab-hint">Click to grab</div>' : ""}
       </div>
     `;
   }
 
   #renderDie(set, index, value, isLocked, canLock) {
     const wrapperClass = [
-      'dice-set__die-wrapper',
-      canLock ? 'dice-set__die-wrapper--can-lock' : '',
+      "dice-set__die-wrapper",
+      canLock ? "dice-set__die-wrapper--can-lock" : "",
     ]
       .filter(Boolean)
-      .join(' ');
+      .join(" ");
 
     return `
       <div class="${wrapperClass}"
            data-set-id="${set.id}"
            data-die-index="${index}">
         <dice-die
-          value="${value || ''}"
+          value="${value || ""}"
           color="${set.color}"
-          ${isLocked ? 'locked' : ''}
+          ${isLocked ? "locked" : ""}
         ></dice-die>
       </div>
     `;
@@ -229,6 +229,6 @@ export class GrabAndRollView extends HTMLElement {
 }
 
 // Register the component
-if (!customElements.get('dice-grab-and-roll')) {
-  customElements.define('dice-grab-and-roll', GrabAndRollView);
+if (!customElements.get("dice-grab-and-roll")) {
+  customElements.define("dice-grab-and-roll", GrabAndRollView);
 }

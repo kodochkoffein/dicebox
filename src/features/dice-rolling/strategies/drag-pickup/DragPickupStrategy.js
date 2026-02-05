@@ -1,5 +1,5 @@
-import { DiceRollingStrategy } from '../DiceRollingStrategy.js';
-import { DragPickupView } from './DragPickupView.js';
+import { DiceRollingStrategy } from "../DiceRollingStrategy.js";
+import { DragPickupView } from "./DragPickupView.js";
 
 /**
  * "Drag to Pick Up" strategy - touch/mouse friendly dice rolling.
@@ -10,11 +10,11 @@ import { DragPickupView } from './DragPickupView.js';
  */
 export class DragPickupStrategy extends DiceRollingStrategy {
   get name() {
-    return 'Drag to Pick Up';
+    return "Drag to Pick Up";
   }
 
   get description() {
-    return 'Drag across dice to pick them up, release to roll. Touch-friendly.';
+    return "Drag across dice to pick them up, release to roll. Touch-friendly.";
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -22,7 +22,7 @@ export class DragPickupStrategy extends DiceRollingStrategy {
   // ─────────────────────────────────────────────────────────────
 
   static get viewTagName() {
-    return 'dice-drag-pickup';
+    return "dice-drag-pickup";
   }
 
   static get viewComponent() {
@@ -30,7 +30,7 @@ export class DragPickupStrategy extends DiceRollingStrategy {
   }
 
   createView() {
-    const view = document.createElement('dice-drag-pickup');
+    const view = document.createElement("dice-drag-pickup");
     view.setStrategy(this);
     return view;
   }
@@ -101,9 +101,10 @@ export class DragPickupStrategy extends DiceRollingStrategy {
       if (!setConfig) continue;
 
       // Ensure we have an array of the right size
-      const newValues = update.currentValues.length === setConfig.count
-        ? [...update.currentValues]
-        : Array(setConfig.count).fill(1);
+      const newValues =
+        update.currentValues.length === setConfig.count
+          ? [...update.currentValues]
+          : Array(setConfig.count).fill(1);
 
       // Roll only the picked dice in this set
       for (const dieIndex of update.indices) {
@@ -124,7 +125,7 @@ export class DragPickupStrategy extends DiceRollingStrategy {
 
     // Broadcast all results
     for (const result of results) {
-      network.broadcast('dice:roll', result);
+      network.broadcast("dice:roll", result);
     }
 
     return results;
@@ -137,20 +138,22 @@ export class DragPickupStrategy extends DiceRollingStrategy {
   async roll(playerId, setIds) {
     // This strategy doesn't use set-based rolling
     // Instead, use rollPickedDice() with specific dice indices
-    throw new Error('DragPickupStrategy uses rollPickedDice() instead of roll()');
+    throw new Error(
+      "DragPickupStrategy uses rollPickedDice() instead of roll()",
+    );
   }
 
   handleMessage(type, payload, fromPeerId) {
     const { state } = this.context;
 
     switch (type) {
-      case 'dice:roll':
+      case "dice:roll":
         state.applyRoll(payload);
         break;
 
       // This strategy doesn't use grab/drop messages
-      case 'dice:grab':
-      case 'dice:drop':
+      case "dice:grab":
+      case "dice:drop":
         // Ignore - not used in this strategy
         break;
     }
