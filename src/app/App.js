@@ -1,12 +1,16 @@
-import { Container } from './Container.js';
-import { DiceStore } from '../features/dice-rolling/state/DiceStore.js';
-import { createStrategy, getAvailableStrategies, DEFAULT_STRATEGY } from '../features/dice-rolling/strategies/index.js';
-import { MessageBus } from '../infrastructure/messaging/MessageBus.js';
-import { DiceAnimationService } from '../features/dice-rolling/services/DiceAnimationService.js';
+import { Container } from "./Container.js";
+import { DiceStore } from "../features/dice-rolling/state/DiceStore.js";
+import {
+  createStrategy,
+  getAvailableStrategies,
+  DEFAULT_STRATEGY,
+} from "../features/dice-rolling/strategies/index.js";
+import { MessageBus } from "../infrastructure/messaging/MessageBus.js";
+import { DiceAnimationService } from "../features/dice-rolling/services/DiceAnimationService.js";
 
 // Import UI components to register them
-import '../ui/containers/DiceRollerContainer.js';
-import '../ui/components/dice/Die.js';
+import "../ui/containers/DiceRollerContainer.js";
+import "../ui/components/dice/Die.js";
 
 /**
  * Main application class.
@@ -49,21 +53,21 @@ export class App {
     } = options;
 
     // Register core services
-    this.#container.registerInstance('localPlayer', localPlayer);
-    this.#container.registerInstance('network', network);
+    this.#container.registerInstance("localPlayer", localPlayer);
+    this.#container.registerInstance("network", network);
 
     // Create and configure dice store
     const diceStore = new DiceStore();
     diceStore.setConfig(diceConfig);
-    this.#container.registerInstance('diceStore', diceStore);
+    this.#container.registerInstance("diceStore", diceStore);
 
     // Create message bus
     const messageBus = new MessageBus();
-    this.#container.registerInstance('messageBus', messageBus);
+    this.#container.registerInstance("messageBus", messageBus);
 
     // Create animation service
     const animationService = new DiceAnimationService();
-    this.#container.registerInstance('animationService', animationService);
+    this.#container.registerInstance("animationService", animationService);
 
     // Set initial strategy
     this.setStrategy(strategyId);
@@ -77,17 +81,23 @@ export class App {
    * @param {HTMLElement|string} container - Element or selector
    */
   mount(container) {
-    const el = typeof container === 'string'
-      ? document.querySelector(container)
-      : container;
+    const el =
+      typeof container === "string"
+        ? document.querySelector(container)
+        : container;
 
     if (!el) {
       throw new Error(`Mount container not found: ${container}`);
     }
 
-    // Create roller container if not exists
-    this.#rollerContainer = document.createElement('dice-roller-container');
-    el.appendChild(this.#rollerContainer);
+    // If the element is already a dice-roller-container, use it directly
+    // Otherwise, create one and append it to the container
+    if (el.tagName === "DICE-ROLLER-CONTAINER") {
+      this.#rollerContainer = el;
+    } else {
+      this.#rollerContainer = document.createElement("dice-roller-container");
+      el.appendChild(this.#rollerContainer);
+    }
 
     // Mount current strategy
     if (this.#currentStrategy) {
@@ -109,10 +119,10 @@ export class App {
 
     // Create strategy context
     const context = {
-      state: this.#container.get('diceStore'),
-      network: this.#container.get('network'),
-      localPlayer: this.#container.get('localPlayer'),
-      animationService: this.#container.get('animationService'),
+      state: this.#container.get("diceStore"),
+      network: this.#container.get("network"),
+      localPlayer: this.#container.get("localPlayer"),
+      animationService: this.#container.get("animationService"),
     };
 
     // Create new strategy
@@ -156,7 +166,7 @@ export class App {
    * @returns {DiceStore}
    */
   get diceStore() {
-    return this.#container.get('diceStore');
+    return this.#container.get("diceStore");
   }
 
   /**
@@ -164,7 +174,7 @@ export class App {
    * @returns {MessageBus}
    */
   get messageBus() {
-    return this.#container.get('messageBus');
+    return this.#container.get("messageBus");
   }
 
   /**
@@ -210,7 +220,6 @@ export class App {
       this.#currentStrategy?.loadState(state.strategyState);
     }
   }
-
 }
 
 /**
