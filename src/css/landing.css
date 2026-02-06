@@ -26,7 +26,7 @@ body::before {
 .hero-frame {
   background: var(--red);
   padding: 6px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
 }
 
 .hero-inner {
@@ -44,10 +44,33 @@ body::before {
   border: 3px solid var(--gold);
 }
 
-.corner-tl { top: 8px; left: 8px; border-right: none; border-bottom: none; }
-.corner-tr { top: 8px; right: 8px; border-left: none; border-bottom: none; }
-.corner-bl { bottom: 8px; left: 8px; border-right: none; border-top: none; }
-.corner-br { bottom: 8px; right: 8px; border-left: none; border-top: none; }
+.corner-tl {
+  top: 8px;
+  left: 8px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.corner-tr {
+  top: 8px;
+  right: 8px;
+  border-left: none;
+  border-bottom: none;
+}
+
+.corner-bl {
+  bottom: 8px;
+  left: 8px;
+  border-right: none;
+  border-top: none;
+}
+
+.corner-br {
+  bottom: 8px;
+  right: 8px;
+  border-left: none;
+  border-top: none;
+}
 
 /* Badge uses shared .badge class from common.css */
 .hero .badge {
@@ -94,8 +117,13 @@ body::before {
   box-shadow: 2px 2px 0 var(--navy);
 }
 
-.hero-die:nth-child(odd) { transform: rotate(-6deg); }
-.hero-die:nth-child(even) { transform: rotate(4deg); }
+.hero-die:nth-child(odd) {
+  transform: rotate(-6deg);
+}
+
+.hero-die:nth-child(even) {
+  transform: rotate(4deg);
+}
 
 .hero-die .dot {
   background: var(--red);
@@ -129,6 +157,7 @@ body::before {
 /* Features Section */
 .features {
   padding: 50px 20px;
+  margin-top: 40px;
   background: var(--navy);
 }
 
@@ -136,13 +165,11 @@ body::before {
   content: '';
   display: block;
   height: 12px;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--gold) 0px,
-    var(--gold) 20px,
-    var(--red) 20px,
-    var(--red) 40px
-  );
+  background: repeating-linear-gradient(90deg,
+      var(--gold) 0px,
+      var(--gold) 20px,
+      var(--red) 20px,
+      var(--red) 40px);
   margin: -50px -20px 40px;
 }
 
@@ -305,13 +332,11 @@ body::before {
   content: '';
   display: block;
   height: 10px;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--navy) 0px,
-    var(--navy) 15px,
-    var(--gold) 15px,
-    var(--gold) 30px
-  );
+  background: repeating-linear-gradient(90deg,
+      var(--navy) 0px,
+      var(--navy) 15px,
+      var(--gold) 15px,
+      var(--gold) 30px);
   margin: -50px -20px 30px;
 }
 
@@ -327,7 +352,7 @@ body::before {
 .final-cta p {
   font-family: 'Lora', serif;
   font-style: italic;
-  color: rgba(255,255,255,0.9);
+  color: rgba(255, 255, 255, 0.9);
   margin-bottom: 25px;
 }
 
@@ -413,15 +438,19 @@ body::before {
   .hero {
     padding: 20px;
   }
+
   .hero-inner {
     padding: 25px 20px;
   }
+
   .hero h1 {
     font-size: 2rem;
   }
+
   .dice-row {
     margin-bottom: 15px;
   }
+
   .hero-die {
     width: 35px;
     height: 35px;
@@ -433,20 +462,25 @@ body::before {
   .hero h1 {
     font-size: 4rem;
   }
+
   .hero-inner {
     padding: 50px 40px;
   }
+
   .features {
     padding: 60px 40px;
   }
+
   .feature-card {
     padding: 30px;
   }
+
   .hero-buttons {
     flex-direction: row;
     justify-content: center;
     gap: 15px;
   }
+
   .hero-buttons .btn-primary,
   .hero-buttons .btn-secondary {
     margin: 0;
