@@ -113,6 +113,7 @@ export class DragPickupStrategy extends DiceRollingStrategy {
 
       const result = {
         setId,
+        color: setConfig.color,
         values: newValues,
         playerId: localPlayer.id,
         username: localPlayer.username,

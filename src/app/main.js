@@ -452,6 +452,7 @@ class DiceBoxApp {
           setResults: payload.setResults || [
             {
               setId: payload.setId,
+              color: payload.color,
               values: payload.values,
               holderId: payload.playerId,
               holderUsername: payload.username,

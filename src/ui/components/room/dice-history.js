@@ -122,12 +122,13 @@ class DiceHistory extends HTMLElement {
 
       const diceHtml = roll.setResults
         .map((setResult) => {
-          const pipColor = getPipColor(setResult.color);
+          const color = setResult.color || "#ffffff";
+          const pipColor = getPipColor(color);
           return `
-          <span class="history-dice-group" style="--group-color: ${setResult.color}">
+          <span class="history-dice-group" style="--group-color: ${color}">
             ${setResult.values
               .map((v) =>
-                renderDie(v, setResult.color, pipColor),
+                renderDie(v, color, pipColor),
               )
               .join("")}
           </span>
@@ -147,16 +148,17 @@ class DiceHistory extends HTMLElement {
     const setEntries = roll.setResults
       .map((setResult) => {
         const isSelf = setResult.holderId === this.selfPeerId;
-        const pipColor = getPipColor(setResult.color);
+        const color = setResult.color || "#ffffff";
+        const pipColor = getPipColor(color);
         const diceHtml = setResult.values
           .map((v) =>
-            renderDie(v, setResult.color, pipColor),
+            renderDie(v, color, pipColor),
           )
           .join("");
 
         return `
         <div class="history-set-entry">
-          <span class="set-indicator" style="background: ${setResult.color}"></span>
+          <span class="set-indicator" style="background: ${color}"></span>
           <span class="username ${isSelf ? "self" : ""}">${escapeHtml(setResult.holderUsername)}</span>
           <span class="history-dice">${diceHtml}</span>
         </div>
