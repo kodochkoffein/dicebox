@@ -22,21 +22,6 @@ export class Die extends HTMLElement {
   }
 
   connectedCallback() {
-    this.render();
-  }
-
-  attributeChangedCallback() {
-    this.render();
-  }
-
-  render() {
-    const value = this.getAttribute("value");
-    const color = this.getAttribute("color") || "#ffffff";
-    const selected = this.hasAttribute("selected");
-    const rolling = this.hasAttribute("rolling");
-
-    const pipColor = this.#getPipColor(color);
-
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -50,7 +35,6 @@ export class Die extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: center;
-          background-color: var(--die-color, ${color});
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
           position: relative;
           transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -62,14 +46,14 @@ export class Die extends HTMLElement {
         }
 
         .die--rolling {
-          animation: roll 0.1s linear infinite;
+          animation: roll 0.15s linear infinite;
         }
 
         @keyframes roll {
           0% { transform: rotate(0deg); }
-          25% { transform: rotate(5deg); }
+          25% { transform: rotate(8deg); }
           50% { transform: rotate(0deg); }
-          75% { transform: rotate(-5deg); }
+          75% { transform: rotate(-8deg); }
           100% { transform: rotate(0deg); }
         }
 
@@ -85,13 +69,38 @@ export class Die extends HTMLElement {
 
       </style>
 
-      <div class="die ${selected ? "die--selected" : ""} ${rolling ? "die--rolling" : ""}"
-           style="--die-color: ${color}">
-        <div class="die__face">
-          ${value ? this.#renderFace(parseInt(value), pipColor) : ""}
-        </div>
+      <div class="die">
+        <div class="die__face"></div>
       </div>
     `;
+    this.#dieEl = this.shadowRoot.querySelector(".die");
+    this.#faceEl = this.shadowRoot.querySelector(".die__face");
+    this.#update();
+  }
+
+  attributeChangedCallback() {
+    if (this.#dieEl) {
+      this.#update();
+    }
+  }
+
+  #dieEl = null;
+  #faceEl = null;
+
+  #update() {
+    const value = this.getAttribute("value");
+    const color = this.getAttribute("color") || "#ffffff";
+    const selected = this.hasAttribute("selected");
+    const rolling = this.hasAttribute("rolling");
+
+    this.#dieEl.style.backgroundColor = color;
+    this.#dieEl.classList.toggle("die--selected", selected);
+    this.#dieEl.classList.toggle("die--rolling", rolling);
+
+    const pipColor = this.#getPipColor(color);
+    this.#faceEl.innerHTML = value
+      ? this.#renderFace(parseInt(value), pipColor)
+      : "";
   }
 
   #renderFace(value, pipColor) {
