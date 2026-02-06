@@ -93,7 +93,7 @@ export class DragPickupView extends HTMLElement {
   }
 
   #isPointInDiceArea(x, y) {
-    const diceArea = this.querySelector(".dice-display");
+    const diceArea = this.querySelector(".drag-pickup-container");
     if (!diceArea) return false;
     const rect = diceArea.getBoundingClientRect();
     return (
