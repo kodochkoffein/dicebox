@@ -56,7 +56,10 @@ function flush() {
   try {
     const body = JSON.stringify({ errors: batch });
     if (navigator.sendBeacon) {
-      navigator.sendBeacon(REPORT_URL, body);
+      // sendBeacon with a plain string sends text/plain, which express.json()
+      // rejects. Wrap in a Blob so the Content-Type is application/json.
+      const blob = new Blob([body], { type: "application/json" });
+      navigator.sendBeacon(REPORT_URL, blob);
     } else {
       fetch(REPORT_URL, {
         method: "POST",
