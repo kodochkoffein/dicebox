@@ -57,11 +57,64 @@ class DiceBoxApp {
   }
 
   async init() {
+    this.setupRouting();
     this.setupMessageHandlers();
     this.setupEventListeners();
     this.setupManagerEvents();
 
     await this.connectionManager.connect();
+  }
+
+  // === URL ROUTING ===
+
+  setupRouting() {
+    this.#handleRoute();
+    window.addEventListener("popstate", () => this.#handleRoute());
+
+    document
+      .getElementById("create-mode-btn")
+      .addEventListener("click", (e) => {
+        e.preventDefault();
+        history.pushState({}, "", "?create");
+        this.#showView("create");
+      });
+
+    document
+      .getElementById("join-mode-btn")
+      .addEventListener("click", (e) => {
+        e.preventDefault();
+        history.pushState({}, "", "?join");
+        this.#showView("join");
+      });
+
+    for (const link of document.querySelectorAll(".back-to-modes")) {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        history.pushState({}, "", "?");
+        this.#showView("mode");
+      });
+    }
+  }
+
+  #handleRoute() {
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.has("create")) {
+      this.#showView("create");
+    } else if (params.has("join")) {
+      this.#showView("join");
+      // Pre-fill room code if provided
+      const roomCode = params.get("join");
+      if (roomCode && roomCode.length === 4) {
+        const joinView = document.getElementById("join-view");
+        const joinComponent = joinView.querySelector("room-join");
+        if (joinComponent && joinComponent.setRoomCode) {
+          joinComponent.setRoomCode(roomCode);
+        }
+      }
+    } else {
+      this.#showView("mode");
+    }
   }
 
   // === MESSAGE HANDLERS SETUP (Mesh topology - all handlers are equal) ===
