@@ -9,6 +9,17 @@ const { logger, truncatePeerId } = require("./logger.js");
 const PORT = process.env.PORT || 3000;
 const app = express();
 
+// Trust proxy configuration for correct client IP behind reverse proxy.
+// Set TRUST_PROXY to the number of proxy hops (e.g. "1" for a single reverse proxy),
+// a comma-separated list of trusted IPs, or "true" to trust all (not recommended).
+// When unset, X-Forwarded-For is ignored and req.ip uses the direct connection IP.
+if (process.env.TRUST_PROXY) {
+  const value = process.env.TRUST_PROXY;
+  // If it looks like a number, parse it; otherwise pass as string
+  const parsed = /^\d+$/.test(value) ? parseInt(value, 10) : value;
+  app.set("trust proxy", parsed);
+}
+
 // CORS configuration via environment variable
 // CORS_ALLOWED_ORIGINS can be a comma-separated list of allowed origins
 // Example: CORS_ALLOWED_ORIGINS=https://example.com,https://app.example.com
@@ -16,6 +27,20 @@ const app = express();
 const CORS_ALLOWED_ORIGINS = process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
   : null;
+
+// Security headers middleware
+app.use((req, res, next) => {
+  res.set("X-Content-Type-Options", "nosniff");
+  res.set("X-Frame-Options", "DENY");
+  res.set("X-XSS-Protection", "0"); // Disabled in favor of CSP; legacy header can cause issues
+  res.set(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: ws:; img-src 'self' data:; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+  );
+  res.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  next();
+});
 
 // CORS middleware
 if (CORS_ALLOWED_ORIGINS) {
@@ -54,6 +79,33 @@ const RATE_LIMIT = {
   maxConnectionsPerIp: 10,
   maxMessageSize: 64 * 1024, // 64KB - more than enough for signaling messages
 };
+
+// HTTP endpoint rate limiting (per IP)
+const HTTP_RATE_LIMIT = {
+  windowMs: 60 * 1000, // 1 minute window
+  maxRequests: 30, // max requests per window per IP
+};
+const httpRates = new Map(); // ip -> { count, windowStart }
+
+function httpRateLimiter(req, res, next) {
+  const ip = req.ip || req.socket?.remoteAddress || "unknown";
+  const now = Date.now();
+  let rateData = httpRates.get(ip);
+
+  if (!rateData || now - rateData.windowStart > HTTP_RATE_LIMIT.windowMs) {
+    rateData = { count: 0, windowStart: now };
+    httpRates.set(ip, rateData);
+  }
+
+  rateData.count++;
+
+  if (rateData.count > HTTP_RATE_LIMIT.maxRequests) {
+    res.set("Retry-After", String(Math.ceil((HTTP_RATE_LIMIT.windowMs - (now - rateData.windowStart)) / 1000)));
+    return res.status(429).json({ error: "Too many requests" });
+  }
+
+  next();
+}
 
 // Local maps for WebSocket references (cannot be stored in Redis)
 const wsConnections = new Map(); // peerId -> ws
@@ -108,7 +160,7 @@ function generateTurnCredentials() {
 }
 
 // API: Get TURN credentials
-app.get("/api/turn-credentials", (req, res) => {
+app.get("/api/turn-credentials", httpRateLimiter, (req, res) => {
   const credentials = generateTurnCredentials();
 
   if (!credentials) {
@@ -119,7 +171,7 @@ app.get("/api/turn-credentials", (req, res) => {
 });
 
 // API: Health check
-app.get("/api/health", async (req, res) => {
+app.get("/api/health", httpRateLimiter, async (req, res) => {
   try {
     const roomCount = await storage.getRoomCount();
     const peerCount = await storage.getPeerCount();
@@ -218,13 +270,16 @@ function checkRateLimit(peerId) {
   return rateData.count <= RATE_LIMIT.maxMessages;
 }
 
-// Get client IP from request
+// Get client IP from request (respects TRUST_PROXY setting)
 function getClientIp(req) {
-  return (
-    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-    req.socket?.remoteAddress ||
-    "unknown"
-  );
+  // Only trust X-Forwarded-For when a proxy is configured
+  if (process.env.TRUST_PROXY) {
+    const forwarded = req.headers["x-forwarded-for"];
+    if (forwarded) {
+      return forwarded.split(",")[0].trim();
+    }
+  }
+  return req.socket?.remoteAddress || "unknown";
 }
 
 // Check connection limit per IP
@@ -728,6 +783,11 @@ const rateLimitCleanupInterval = setInterval(() => {
   for (const [peerId, rateData] of messageRates) {
     if (now - rateData.windowStart > RATE_LIMIT.windowMs * 10) {
       messageRates.delete(peerId);
+    }
+  }
+  for (const [ip, rateData] of httpRates) {
+    if (now - rateData.windowStart > HTTP_RATE_LIMIT.windowMs * 2) {
+      httpRates.delete(ip);
     }
   }
 }, 60000);
