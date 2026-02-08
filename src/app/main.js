@@ -592,15 +592,9 @@ class DiceBoxApp {
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay qr-modal-overlay";
     overlay.innerHTML = `
-      <div class="modal-content qr-modal-content">
-        <div class="modal-header">
-          <h2>Join Room ${this.roomManager.roomId}</h2>
-          <button class="modal-close-btn" aria-label="Close">&times;</button>
-        </div>
-        <div class="qr-modal-body">
-          <canvas class="qr-canvas"></canvas>
-          <p class="qr-hint">Scan to join this room</p>
-        </div>
+      <div class="qr-modal-body">
+        <canvas class="qr-canvas"></canvas>
+        <p class="qr-hint">Scan to join this room</p>
       </div>
     `;
 
@@ -618,12 +612,8 @@ class DiceBoxApp {
       console.error("Failed to generate QR code:", err);
     }
 
-    // Close handlers
-    const close = () => overlay.remove();
-    overlay.querySelector(".modal-close-btn").addEventListener("click", close);
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) close();
-    });
+    // Any click closes the modal
+    overlay.addEventListener("click", () => overlay.remove());
   }
 
   // === LEAVE ROOM ===
