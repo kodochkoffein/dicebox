@@ -473,7 +473,18 @@ class DiceBoxApp {
           <span class="frame-badge">Room ${this.roomManager.roomId}</span>
           <button class="qr-icon-btn" aria-label="Show QR code to join room" title="Show QR code">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-              <path d="M3 11h2V9H3v2zm0-4h2V3H3v4zm4 4h4V3H7v8zm8-8v4h2V3h-2zm-4 16h2v-4h-2v4zm-8 0h4v-4H3v4zm8-8h2v2h-2v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zm0 4h-2v2h-2v2h4v-4zm-4 4h-2v2h2v-2zm-8-8h2v2H7v-2zm8-8h6v6h-6V3zm-12 0h6v6H3V3zm0 12h6v6H3v-6zm2-10v2h2V5H5zm12 0v2h2V5h-2zM5 17v2h2v-2H5z"/>
+              <!-- Corner brackets -->
+              <path d="M2 2h5v2H4v3H2V2zM17 2h5v5h-2V4h-3V2zM2 17h2v3h3v2H2v-5zM20 20v-3h2v5h-5v-2h3z"/>
+              <!-- Finder pattern top-left -->
+              <path d="M5 5h5v5H5V5zm1.5 1.5v2h2v-2h-2z" fill-rule="evenodd"/>
+              <!-- Finder pattern top-right -->
+              <path d="M14 5h5v5h-5V5zm1.5 1.5v2h2v-2h-2z" fill-rule="evenodd"/>
+              <!-- Finder pattern bottom-left -->
+              <path d="M5 14h5v5H5v-5zm1.5 1.5v2h2v-2h-2z" fill-rule="evenodd"/>
+              <!-- Data dots bottom-right -->
+              <rect x="14" y="14" width="2" height="2"/><rect x="17" y="14" width="2" height="2"/>
+              <rect x="14" y="17" width="2" height="2"/><rect x="17" y="17" width="2" height="2"/>
+              <rect x="16" y="16" width="1.5" height="1.5"/>
             </svg>
           </button>
         </span>`;
