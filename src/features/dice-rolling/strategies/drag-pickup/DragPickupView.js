@@ -201,7 +201,8 @@ export class DragPickupView extends HTMLElement {
     const wrappers = this.querySelectorAll(".die-wrapper");
     const hasPickedUp = this.#pickedUpDice.size > 0;
 
-    wrappers.forEach((wrapper, index) => {
+    wrappers.forEach((wrapper) => {
+      const index = parseInt(wrapper.dataset.dieIndex, 10);
       const dieEl = wrapper.querySelector("dice-die");
       if (!dieEl) return;
 
@@ -259,14 +260,13 @@ export class DragPickupView extends HTMLElement {
 
   #showRollingAnimation(diceToRoll) {
     const wrappers = this.querySelectorAll(".die-wrapper");
-    const allDice = this.#strategy.getAllDice();
 
-    wrappers.forEach((wrapper, index) => {
+    wrappers.forEach((wrapper) => {
+      const index = parseInt(wrapper.dataset.dieIndex, 10);
       const dieEl = wrapper.querySelector("dice-die");
       if (!dieEl) return;
 
       if (diceToRoll.has(index)) {
-        const die = allDice[index];
         dieEl.setAttribute("rolling", "");
         dieEl.classList.add("rolling");
         dieEl.classList.remove("picked-up", "not-picked", "placeholder");
@@ -296,49 +296,69 @@ export class DragPickupView extends HTMLElement {
   #render() {
     const allDice = this.#strategy.getAllDice();
     const hasPickedUp = this.#pickedUpDice.size > 0;
-    const hasValues = allDice.some((d) => d.value !== null);
 
     // Ensure transforms array is sized correctly
     while (this.#diceTransforms.length < allDice.length) {
       this.#diceTransforms.push("");
     }
 
-    const diceHtml = allDice
-      .map((die, index) => {
-        const isPickedUp = this.#pickedUpDice.has(index);
-        const transform = isPickedUp ? "" : this.#diceTransforms[index] || "";
+    // Group dice by set (consecutive dice with same setId)
+    const groups = [];
+    let currentGroup = null;
+    allDice.forEach((die, index) => {
+      if (!currentGroup || currentGroup.setId !== die.setId) {
+        currentGroup = { setId: die.setId, dice: [] };
+        groups.push(currentGroup);
+      }
+      currentGroup.dice.push({ ...die, globalIndex: index });
+    });
 
-        if (die.value === null) {
-          // Placeholder state
-          const classes = ["placeholder"];
-          if (isPickedUp) classes.push("picked-up");
-          else if (hasPickedUp) classes.push("not-picked");
+    const setsHtml = groups
+      .map((group) => {
+        const diceHtml = group.dice
+          .map((die) => {
+            const index = die.globalIndex;
+            const isPickedUp = this.#pickedUpDice.has(index);
+            const transform =
+              isPickedUp ? "" : this.#diceTransforms[index] || "";
 
-          return `
-            <div class="die-wrapper" data-die-index="${index}">
-              <dice-die class="${classes.join(" ")}" color="${die.color}" value="1"></dice-die>
-            </div>
-          `;
-        }
+            if (die.value === null) {
+              // Placeholder state
+              const classes = ["placeholder"];
+              if (isPickedUp) classes.push("picked-up");
+              else if (hasPickedUp) classes.push("not-picked");
 
-        // Show actual value
-        const classes = [];
-        if (isPickedUp) classes.push("picked-up");
-        else if (hasPickedUp) classes.push("not-picked");
+              return `
+                <div class="die-wrapper" data-die-index="${index}">
+                  <dice-die class="${classes.join(" ")}" color="${die.color}" value="1"></dice-die>
+                </div>
+              `;
+            }
 
-        const styleAttr = transform ? `style="transform: ${transform}"` : "";
-        return `
-          <div class="die-wrapper" data-die-index="${index}">
-            <dice-die class="${classes.join(" ")}" color="${die.color}" value="${die.value}" ${styleAttr}></dice-die>
-          </div>
-        `;
+            // Show actual value
+            const classes = [];
+            if (isPickedUp) classes.push("picked-up");
+            else if (hasPickedUp) classes.push("not-picked");
+
+            const styleAttr = transform
+              ? `style="transform: ${transform}"`
+              : "";
+            return `
+              <div class="die-wrapper" data-die-index="${index}">
+                <dice-die class="${classes.join(" ")}" color="${die.color}" value="${die.value}" ${styleAttr}></dice-die>
+              </div>
+            `;
+          })
+          .join("");
+
+        return `<div class="dice-set-group">${diceHtml}</div>`;
       })
       .join("");
 
     this.innerHTML = `
       <div class="drag-pickup-container">
         <div class="dice-display">
-          ${diceHtml}
+          ${setsHtml}
         </div>
         <div class="hint">Drag across dice to pick up</div>
       </div>
