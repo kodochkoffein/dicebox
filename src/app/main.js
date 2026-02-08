@@ -18,6 +18,9 @@ import { MessageRouter, MSG } from "../services/message-router.js";
 // Dice app
 import { createApp } from "./App.js";
 
+// QR code generation
+import QRCode from "qrcode";
+
 // UI Components (register custom elements)
 import "../ui/components/shared/play-frame.js";
 import "../ui/components/shared/header-bar.js";
@@ -462,10 +465,21 @@ class DiceBoxApp {
 
     this.headerBar.showRoomView();
 
-    // Show room code badge on the play frame
+    // Show room code badge with QR icon on the play frame
     const topSlot = document.querySelector("play-frame .play-frame-top-slot");
     if (topSlot) {
-      topSlot.innerHTML = `<span class="frame-badge">Room ${this.roomManager.roomId}</span>`;
+      topSlot.innerHTML = `
+        <span class="frame-badge-group">
+          <span class="frame-badge">Room ${this.roomManager.roomId}</span>
+          <button class="qr-icon-btn" aria-label="Show QR code to join room" title="Show QR code">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 11h2V9H3v2zm0-4h2V3H3v4zm4 4h4V3H7v8zm8-8v4h2V3h-2zm-4 16h2v-4h-2v4zm-8 0h4v-4H3v4zm8-8h2v2h-2v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zm0 4h-2v2h-2v2h4v-4zm-4 4h-2v2h2v-2zm-8-8h2v2H7v-2zm8-8h6v6h-6V3zm-12 0h6v6H3V3zm0 12h6v6H3v-6zm2-10v2h2V5H5zm12 0v2h2V5h-2zM5 17v2h2v-2H5z"/>
+            </svg>
+          </button>
+        </span>`;
+      topSlot
+        .querySelector(".qr-icon-btn")
+        .addEventListener("click", () => this.showQrModal());
     }
 
     // Get UI components
@@ -566,6 +580,50 @@ class DiceBoxApp {
       default:
         return null;
     }
+  }
+
+  // === QR CODE MODAL ===
+
+  async showQrModal() {
+    // Build the join URL
+    const joinUrl = `${window.location.origin}${window.location.pathname}?join=${this.roomManager.roomId}`;
+
+    // Create modal overlay
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay qr-modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal-content qr-modal-content">
+        <div class="modal-header">
+          <h2>Join Room ${this.roomManager.roomId}</h2>
+          <button class="modal-close-btn" aria-label="Close">&times;</button>
+        </div>
+        <div class="qr-modal-body">
+          <canvas class="qr-canvas"></canvas>
+          <p class="qr-hint">Scan to join this room</p>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Generate QR code onto the canvas
+    const canvas = overlay.querySelector(".qr-canvas");
+    try {
+      await QRCode.toCanvas(canvas, joinUrl, {
+        width: 220,
+        margin: 2,
+        color: { dark: "#003049", light: "#fffef9" },
+      });
+    } catch (err) {
+      console.error("Failed to generate QR code:", err);
+    }
+
+    // Close handlers
+    const close = () => overlay.remove();
+    overlay.querySelector(".modal-close-btn").addEventListener("click", close);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close();
+    });
   }
 
   // === LEAVE ROOM ===

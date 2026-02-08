@@ -398,6 +398,28 @@ header-bar .btn-leave:hover {
   box-shadow: none;
 }
 
+/* --- QR Code Modal --- */
+.qr-modal-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 20px;
+}
+
+.qr-modal-body .qr-canvas {
+  border: 3px solid var(--navy);
+  box-shadow: 3px 3px 0 var(--navy);
+}
+
+.qr-modal-body .qr-hint {
+  margin-top: 16px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
 .modal-content dice-config {
   margin-bottom: 0;
 }
