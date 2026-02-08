@@ -1224,11 +1224,19 @@ dice-drag-pickup .drag-pickup-container.cancelled {
 dice-drag-pickup .dice-display {
   display: flex;
   justify-content: center;
-  gap: 12px;
+  gap: 24px;
   flex-wrap: wrap;
   min-height: 90px;
   align-items: center;
   padding: 16px;
+}
+
+dice-drag-pickup .dice-set-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
 }
 
 dice-drag-pickup .die-wrapper {
