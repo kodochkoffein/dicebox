@@ -615,7 +615,7 @@ class DiceBoxApp {
     const canvas = overlay.querySelector(".qr-canvas");
     try {
       await QRCode.toCanvas(canvas, joinUrl, {
-        width: 220,
+        width: 512,
         margin: 2,
         color: { dark: "#003049", light: "#fffef9" },
       });

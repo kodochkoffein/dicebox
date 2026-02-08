@@ -399,20 +399,29 @@ header-bar .btn-leave:hover {
 }
 
 /* --- QR Code Modal --- */
+.qr-modal-overlay {
+  cursor: pointer;
+}
+
 .qr-modal-body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   background: var(--surface);
   border: 3px solid var(--navy);
   box-shadow: 4px 4px 0 var(--navy);
-  padding: 24px 20px;
+  padding: 24px;
   animation: slideUp 0.2s ease;
+  width: min(80vw, 80vh);
+  aspect-ratio: 1 / 1;
 }
 
 .qr-modal-body .qr-canvas {
   border: 3px solid var(--navy);
   box-shadow: 3px 3px 0 var(--navy);
+  width: 100% !important;
+  height: auto !important;
 }
 
 .qr-modal-body .qr-hint {
