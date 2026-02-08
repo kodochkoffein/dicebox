@@ -5,6 +5,7 @@
 import { signalingClient } from "./signaling-client.js";
 import { webrtcManager } from "./webrtc-manager.js";
 import { MeshState } from "../state/mesh-state.js";
+import { generateRoomId } from "../utils/room-id.js";
 
 export class RoomManager extends EventTarget {
   constructor() {
@@ -17,11 +18,50 @@ export class RoomManager extends EventTarget {
   }
 
   /**
-   * Create a new room
+   * Create a new room, checking availability first and retrying if taken.
+   * @param {string} roomId - Initial room ID to try
+   * @param {string} username
+   * @param {string} myPeerId
+   * @param {boolean} serverConnected
+   * @param {object} diceConfig
+   * @param {number} [maxRetries=5] - Max times to regenerate if ID is taken
    */
-  createRoom(roomId, username, myPeerId, serverConnected, diceConfig) {
-    this.roomId = roomId;
+  async createRoom(
+    roomId,
+    username,
+    myPeerId,
+    serverConnected,
+    diceConfig,
+    maxRetries = 5,
+  ) {
     this.username = username;
+
+    // Check availability with retries if server is connected
+    let finalRoomId = roomId;
+    if (serverConnected) {
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const available =
+          await signalingClient.checkRoomAvailability(finalRoomId);
+        if (available) break;
+        if (attempt === maxRetries) {
+          this.dispatchEvent(
+            new CustomEvent("create-room-failed", {
+              detail: {
+                roomId: finalRoomId,
+                reason: "Could not find an available room ID",
+              },
+            }),
+          );
+          return;
+        }
+        console.log(
+          `Room ${finalRoomId} is taken, generating new ID (attempt ${attempt + 1})`,
+        );
+        finalRoomId = generateRoomId();
+      }
+    }
+
+    this.roomId = finalRoomId;
 
     // Initialize mesh state
     this.meshState.clear();
@@ -30,15 +70,15 @@ export class RoomManager extends EventTarget {
 
     // Register room with server
     if (serverConnected) {
-      signalingClient.createRoom(roomId, diceConfig);
+      signalingClient.createRoom(finalRoomId, diceConfig);
     }
 
     console.log(
-      `Created room ${roomId} (server ${serverConnected ? "connected" : "offline"})`,
+      `Created room ${finalRoomId} (server ${serverConnected ? "connected" : "offline"})`,
     );
     this.dispatchEvent(
       new CustomEvent("room-created", {
-        detail: { roomId },
+        detail: { roomId: finalRoomId },
       }),
     );
   }

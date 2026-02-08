@@ -481,18 +481,24 @@ room-create .dice-hint {
 room-join .dice-input-container {
   display: flex;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   margin-top: 8px;
   user-select: none;
 }
 
+room-join .room-dice-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
 room-join .room-dice {
-  width: 55px;
-  height: 55px;
-  background: var(--surface);
+  width: 50px;
+  height: 50px;
   border: 3px solid var(--navy);
   border-radius: 6px;
-  padding: 6px;
+  padding: 2px;
   box-shadow: 3px 3px 0 var(--navy);
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -517,6 +523,25 @@ room-join .room-dice:active {
 
 room-join .room-dice.flipping {
   animation: diceFlip 0.2s ease;
+}
+
+room-join .room-dice-color-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--navy);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.1s ease;
+  box-shadow: 1px 1px 0 var(--navy);
+}
+
+room-join .room-dice-color-dot:hover {
+  transform: scale(1.2);
+  box-shadow: 2px 2px 0 var(--navy);
+}
+
+room-join .room-dice-color-dot:active {
+  transform: scale(0.9);
 }
 
 @keyframes diceFlip {
@@ -1204,12 +1229,17 @@ peer-list .empty-message {
   }
 
   room-join .room-dice {
-    width: 52px;
-    height: 52px;
+    width: 46px;
+    height: 46px;
   }
 
   room-join .dice-input-container {
-    gap: 8px;
+    gap: 6px;
+  }
+
+  room-join .room-dice-color-dot {
+    width: 16px;
+    height: 16px;
   }
 
   room-create .btn-create,

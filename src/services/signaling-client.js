@@ -244,6 +244,34 @@ export class SignalingClient extends EventTarget {
     return this.send({ type: "query-room", roomId });
   }
 
+  /**
+   * Check if a room ID is available (not currently in use)
+   * @param {string} roomId
+   * @returns {Promise<boolean>} true if the room ID is available
+   */
+  checkRoomAvailability(roomId) {
+    return new Promise((resolve) => {
+      const handler = (e) => {
+        if (e.detail.roomId !== roomId) return;
+        this.removeEventListener("room-info", handler);
+        clearTimeout(timeout);
+        // Available if room doesn't exist or has no connected peers
+        const available =
+          !e.detail.exists ||
+          !e.detail.peerIds ||
+          e.detail.peerIds.length === 0;
+        resolve(available);
+      };
+      this.addEventListener("room-info", handler);
+      const timeout = setTimeout(() => {
+        this.removeEventListener("room-info", handler);
+        // On timeout, assume available to avoid blocking room creation
+        resolve(true);
+      }, 5000);
+      this.queryRoom(roomId);
+    });
+  }
+
   // Create a new room with dice config
   createRoom(roomId, diceConfig) {
     if (this.send({ type: "create-room", roomId, diceConfig })) {
