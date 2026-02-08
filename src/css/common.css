@@ -232,6 +232,13 @@ play-frame .play-frame-top-slot:empty {
   display: none;
 }
 
+/* Frame Badge Group - badge + QR icon together */
+.frame-badge-group {
+  display: inline-flex;
+  align-items: stretch;
+  white-space: nowrap;
+}
+
 /* Frame Badge - reusable label style for frame slots */
 .frame-badge {
   display: inline-block;
@@ -245,6 +252,36 @@ play-frame .play-frame-top-slot:empty {
   letter-spacing: 2px;
   border: 2px solid var(--navy);
   white-space: nowrap;
+}
+
+/* QR Icon Button - sits next to the frame badge */
+.qr-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--navy);
+  color: var(--cream);
+  border: 2px solid var(--navy);
+  border-left: none;
+  padding: 2px 8px;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background 0.15s ease;
+}
+
+.qr-icon-btn:hover {
+  background: var(--brown);
+  transform: none;
+  box-shadow: none;
+}
+
+.qr-icon-btn:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.qr-icon-btn svg {
+  display: block;
 }
 
 /* Shared Keyframe Animations */
