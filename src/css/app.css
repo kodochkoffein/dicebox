@@ -403,7 +403,11 @@ header-bar .btn-leave:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
+  background: var(--surface);
+  border: 3px solid var(--navy);
+  box-shadow: 4px 4px 0 var(--navy);
   padding: 24px 20px;
+  animation: slideUp 0.2s ease;
 }
 
 .qr-modal-body .qr-canvas {
