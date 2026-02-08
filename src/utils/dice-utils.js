@@ -34,16 +34,20 @@ const PIP_CONFIGS = {
  * Generate SVG markup for a die face
  * @param {number} value - Die face value (1-6)
  * @param {string} pipColor - Color of the pips (default: '#0f172a')
+ * @param {string} [bgColor] - Optional background color for the die face
  * @returns {string} SVG markup
  */
-export function getDiceSvg(value, pipColor = "#0f172a") {
+export function getDiceSvg(value, pipColor = "#0f172a", bgColor) {
+  const bg = bgColor
+    ? `<rect x="1" y="1" width="48" height="48" rx="8" fill="${bgColor}" stroke="#334155" stroke-width="1.5"/>`
+    : "";
   const pips = PIP_CONFIGS[value]
     .map((pos) => {
       const p = PIP_POSITIONS[pos];
       return `<circle cx="${p.cx}" cy="${p.cy}" r="5" fill="${pipColor}"/>`;
     })
     .join("");
-  return `<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">${pips}</svg>`;
+  return `<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">${bg}${pips}</svg>`;
 }
 
 /**

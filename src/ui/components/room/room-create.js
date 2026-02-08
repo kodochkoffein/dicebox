@@ -3,6 +3,7 @@
  */
 import "../shared/username-input.js";
 import "./dice-config.js";
+import { generateRoomId } from "../../../utils/room-id.js";
 
 class RoomCreate extends HTMLElement {
   connectedCallback() {
@@ -49,10 +50,7 @@ class RoomCreate extends HTMLElement {
   }
 
   _generateRoomId() {
-    return Array.from(
-      { length: 4 },
-      () => Math.floor(Math.random() * 6) + 1,
-    ).join("");
+    return generateRoomId();
   }
 }
 

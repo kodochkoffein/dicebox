@@ -108,7 +108,7 @@ class DiceBoxApp {
       this.#showView("join");
       // Pre-fill room code if provided
       const roomCode = params.get("join");
-      if (roomCode && roomCode.length === 4) {
+      if (roomCode && roomCode.length >= 4) {
         const joinView = document.getElementById("join-view");
         const joinComponent = joinView.querySelector("room-join");
         if (joinComponent && joinComponent.setRoomCode) {
