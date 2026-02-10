@@ -113,7 +113,6 @@ class RoomCodeInput extends HTMLElement {
       const index = this._pointerState.index;
       this._dice[index].colorIndex =
         (this._dice[index].colorIndex + 1) % ROOM_CODE_COLORS.length;
-      this._animateDie(index, "flipping");
       this._updateDie(index);
     }
 
