@@ -21,6 +21,9 @@ import { createApp } from "./App.js";
 // QR code generation
 import QRCode from "qrcode";
 
+// Room ID utilities
+import { roomIdToHtml } from "../utils/room-id.js";
+
 // UI Components (register custom elements)
 import "../ui/components/shared/play-frame.js";
 import "../ui/components/shared/header-bar.js";
@@ -470,7 +473,7 @@ class DiceBoxApp {
     if (topSlot) {
       topSlot.innerHTML = `
         <span class="frame-badge-group">
-          <span class="frame-badge">Room ${this.roomManager.roomId}</span>
+          <span class="frame-badge">${roomIdToHtml(this.roomManager.roomId)}</span>
           <button class="qr-icon-btn" aria-label="Show QR code to join room" title="Show QR code">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
               <!-- Corner brackets -->

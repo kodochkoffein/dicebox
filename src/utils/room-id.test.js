@@ -24,8 +24,8 @@ describe("room-id", () => {
       expect(new Set(hexes).size).toBe(hexes.length);
     });
 
-    it("should use 5 dice for room codes", () => {
-      expect(ROOM_CODE_LENGTH).toBe(5);
+    it("should use 4 dice for room codes", () => {
+      expect(ROOM_CODE_LENGTH).toBe(4);
     });
   });
 
@@ -56,30 +56,29 @@ describe("room-id", () => {
 
   describe("parseRoomId", () => {
     it("should parse a valid room ID", () => {
-      const result = parseRoomId("R3B5W1G4P2");
+      const result = parseRoomId("R3B5W1G4");
       expect(result).toEqual([
         { colorIndex: 1, value: 3 },
         { colorIndex: 2, value: 5 },
         { colorIndex: 0, value: 1 },
         { colorIndex: 3, value: 4 },
-        { colorIndex: 4, value: 2 },
       ]);
     });
 
     it("should return null for wrong length", () => {
-      expect(parseRoomId("R3B5")).toBeNull();
-      expect(parseRoomId("R3B5W1G4P2Y6X")).toBeNull();
+      expect(parseRoomId("R3")).toBeNull();
+      expect(parseRoomId("R3B5W1G4P2Y6")).toBeNull();
       expect(parseRoomId("")).toBeNull();
     });
 
     it("should return null for invalid color codes", () => {
-      expect(parseRoomId("X3B5W1G4P2")).toBeNull();
+      expect(parseRoomId("X3B5W1G4")).toBeNull();
     });
 
     it("should return null for invalid values", () => {
-      expect(parseRoomId("R0B5W1G4P2")).toBeNull();
-      expect(parseRoomId("R7B5W1G4P2")).toBeNull();
-      expect(parseRoomId("RaB5W1G4P2")).toBeNull();
+      expect(parseRoomId("R0B5W1G4")).toBeNull();
+      expect(parseRoomId("R7B5W1G4")).toBeNull();
+      expect(parseRoomId("RaB5W1G4")).toBeNull();
     });
 
     it("should return null for non-string input", () => {
@@ -96,9 +95,8 @@ describe("room-id", () => {
         { colorIndex: 2, value: 5 },
         { colorIndex: 0, value: 1 },
         { colorIndex: 3, value: 4 },
-        { colorIndex: 4, value: 2 },
       ];
-      expect(encodeRoomId(dice)).toBe("R3B5W1G4P2");
+      expect(encodeRoomId(dice)).toBe("R3B5W1G4");
     });
 
     it("should use all 6 colors correctly", () => {
@@ -107,9 +105,8 @@ describe("room-id", () => {
         { colorIndex: 1, value: 2 },
         { colorIndex: 2, value: 3 },
         { colorIndex: 3, value: 4 },
-        { colorIndex: 4, value: 5 },
       ];
-      expect(encodeRoomId(dice)).toBe("W1R2B3G4P5");
+      expect(encodeRoomId(dice)).toBe("W1R2B3G4");
     });
   });
 
@@ -120,7 +117,6 @@ describe("room-id", () => {
         { colorIndex: 0, value: 1 },
         { colorIndex: 3, value: 3 },
         { colorIndex: 1, value: 4 },
-        { colorIndex: 2, value: 2 },
       ];
       const encoded = encodeRoomId(dice);
       const parsed = parseRoomId(encoded);
@@ -128,7 +124,7 @@ describe("room-id", () => {
     });
 
     it("should roundtrip parse -> encode", () => {
-      const id = "Y6W1G3R4B2";
+      const id = "Y6W1G3R4";
       const parsed = parseRoomId(id);
       expect(encodeRoomId(parsed)).toBe(id);
     });
