@@ -6,6 +6,8 @@
  * This gives 36^5 = 60,466,176 unique combinations.
  */
 
+import { getDiceSvg, getPipColor } from "./dice-utils.js";
+
 export const ROOM_CODE_COLORS = [
   { code: "W", name: "White", hex: "#ffffff" },
   { code: "R", name: "Red", hex: "#ef4444" },
@@ -15,7 +17,7 @@ export const ROOM_CODE_COLORS = [
   { code: "Y", name: "Yellow", hex: "#eab308" },
 ];
 
-export const ROOM_CODE_LENGTH = 5;
+export const ROOM_CODE_LENGTH = 4;
 
 /**
  * Generate a random room ID string
@@ -69,5 +71,24 @@ export function parseRoomId(roomId) {
 export function encodeRoomId(dice) {
   return dice
     .map((d) => `${ROOM_CODE_COLORS[d.colorIndex].code}${d.value}`)
+    .join("");
+}
+
+/**
+ * Render a room ID as inline HTML with mini colored dice SVGs
+ * @param {string} roomId e.g. "R3B5W1G4P2"
+ * @returns {string} HTML string with inline dice
+ */
+export function roomIdToHtml(roomId) {
+  const dice = parseRoomId(roomId);
+  if (!dice) return roomId;
+
+  return dice
+    .map((d) => {
+      const color = ROOM_CODE_COLORS[d.colorIndex];
+      const pip = getPipColor(color.hex);
+      const svg = getDiceSvg(d.value, pip, color.hex);
+      return `<span class="room-code-die">${svg}</span>`;
+    })
     .join("");
 }
