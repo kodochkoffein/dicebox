@@ -84,28 +84,24 @@ class RoomCodeInput extends HTMLElement {
   }
 
   _onPointerMove(e) {
-    if (!this._pointerState) return;
+    if (!this._pointerState || this._pointerState.swiped) return;
 
     const dy = this._pointerState.startY - e.clientY; // positive = swipe up
-    if (Math.abs(dy) >= SWIPE_THRESHOLD && !this._pointerState.swiped) {
+    if (Math.abs(dy) >= SWIPE_THRESHOLD) {
+      // Mark as swiped — stays true for the rest of this gesture
+      // so pointerup won't also fire a color change
       this._pointerState.swiped = true;
 
       const index = this._pointerState.index;
       const die = this._dice[index];
       if (dy > 0) {
-        // Swipe up — increase value
         die.value = (die.value % 6) + 1;
       } else {
-        // Swipe down — decrease value
         die.value = die.value === 1 ? 6 : die.value - 1;
       }
 
       this._animateDie(index, "flipping");
       this._updateDie(index);
-
-      // Reset start position so continuous dragging keeps cycling
-      this._pointerState.startY = e.clientY;
-      this._pointerState.swiped = false;
     }
   }
 
