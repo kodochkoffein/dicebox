@@ -15,6 +15,7 @@ class RoomCreate extends HTMLElement {
       <div class="join-buttons">
         <button class="btn-create" id="submit-btn">Start Room</button>
       </div>
+      <p class="inline-error" hidden></p>
     `;
 
     this.querySelector("#submit-btn").addEventListener("click", () =>
@@ -25,9 +26,11 @@ class RoomCreate extends HTMLElement {
   }
 
   _handleSubmit() {
+    this.clearError();
+
     const usernameInput = this.querySelector("username-input");
     if (!usernameInput.value) {
-      usernameInput.focus();
+      usernameInput.showError();
       return;
     }
 
@@ -47,6 +50,22 @@ class RoomCreate extends HTMLElement {
         },
       }),
     );
+  }
+
+  showError(message) {
+    const el = this.querySelector(".inline-error");
+    if (el) {
+      el.textContent = message;
+      el.hidden = false;
+    }
+  }
+
+  clearError() {
+    const el = this.querySelector(".inline-error");
+    if (el) {
+      el.textContent = "";
+      el.hidden = true;
+    }
   }
 
   _generateRoomId() {
