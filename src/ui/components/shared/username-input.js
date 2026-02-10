@@ -9,10 +9,15 @@ class UsernameInput extends HTMLElement {
         <label for="username">Your Name</label>
         <input type="text" id="username" placeholder="Enter your name"
                maxlength="20" autocomplete="off" value="${saved}">
+        <p class="username-hint" hidden>Please enter your name</p>
       </div>
     `;
     this._input = this.querySelector("input");
-    this._input.addEventListener("input", () => this._emitChange());
+    this._hint = this.querySelector(".username-hint");
+    this._input.addEventListener("input", () => {
+      this._clearError();
+      this._emitChange();
+    });
     this._input.addEventListener("keypress", (e) => {
       if (e.key === "Enter") {
         this.dispatchEvent(
@@ -28,6 +33,27 @@ class UsernameInput extends HTMLElement {
 
   focus() {
     this._input?.focus();
+  }
+
+  showError() {
+    if (this._hint) {
+      this._hint.hidden = false;
+    }
+    if (this._input) {
+      this._input.classList.add("shake");
+      this._input.addEventListener(
+        "animationend",
+        () => this._input.classList.remove("shake"),
+        { once: true },
+      );
+    }
+    this.focus();
+  }
+
+  _clearError() {
+    if (this._hint) {
+      this._hint.hidden = true;
+    }
   }
 
   saveToStorage() {

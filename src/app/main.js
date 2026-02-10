@@ -24,6 +24,9 @@ import QRCode from "qrcode";
 // Room ID utilities
 import { roomIdToHtml } from "../utils/room-id.js";
 
+// Toast notifications
+import { showToast } from "../ui/components/shared/toast-container.js";
+
 // UI Components (register custom elements)
 import "../ui/components/shared/play-frame.js";
 import "../ui/components/shared/header-bar.js";
@@ -68,7 +71,10 @@ class DiceBoxApp {
     this.setupEventListeners();
     this.setupManagerEvents();
 
-    await this.connectionManager.connect();
+    const connected = await this.connectionManager.connect();
+    if (!connected) {
+      showToast("Connection to server failed — retrying...");
+    }
   }
 
   // === URL ROUTING ===
@@ -174,17 +180,38 @@ class DiceBoxApp {
             hasPeers ? "reconnecting-with-peers" : "disconnected",
           );
         }
+        showToast("Unable to reconnect to server. Please refresh the page.");
       },
-      onServerError: () => {},
+      onServerError: (detail) => {
+        showToast(
+          detail?.reason || "Something went wrong on the server. Please try again.",
+        );
+      },
     });
 
     // Room manager events
     this.roomManager.setupSignalingEvents({
       onCreateRoomFailed: ({ reason }) => {
         console.error("Failed to create room:", reason);
+        const createComponent = document.querySelector("room-create");
+        if (createComponent) {
+          createComponent.showError("Could not create room — please try again");
+        }
       },
       onJoinFailed: ({ reason }) => {
         console.error("Failed to join room:", reason);
+        const joinComponent = document.querySelector("room-join");
+        if (joinComponent) {
+          const messages = {
+            "Room not found": "Room not found — check the dice code and try again",
+            "Room is empty": "Room is empty — there's nobody in that room",
+            "Cannot join room - no server connection":
+              "Not connected to server — check your internet connection",
+          };
+          joinComponent.showError(
+            messages[reason] || "Failed to join room — please try again",
+          );
+        }
       },
       onPeerDisconnected: ({ peerId }) => {
         // Handle WebRTC disconnection

@@ -12,19 +12,23 @@ class RoomJoin extends HTMLElement {
       <div class="join-buttons">
         <button class="btn-join" id="submit-btn">Enter Room</button>
       </div>
+      <p class="inline-error" hidden></p>
     `;
 
     this.querySelector("#submit-btn").addEventListener("click", () =>
       this._handleSubmit(),
     );
     this.addEventListener("username-submit", () => this._handleSubmit());
+    this.addEventListener("room-code-changed", () => this.clearError());
     this.querySelector("username-input").focus();
   }
 
   _handleSubmit() {
+    this.clearError();
+
     const usernameInput = this.querySelector("username-input");
     if (!usernameInput.value) {
-      usernameInput.focus();
+      usernameInput.showError();
       return;
     }
 
@@ -41,6 +45,22 @@ class RoomJoin extends HTMLElement {
         },
       }),
     );
+  }
+
+  showError(message) {
+    const el = this.querySelector(".inline-error");
+    if (el) {
+      el.textContent = message;
+      el.hidden = false;
+    }
+  }
+
+  clearError() {
+    const el = this.querySelector(".inline-error");
+    if (el) {
+      el.textContent = "";
+      el.hidden = true;
+    }
   }
 
   setRoomCode(code) {
