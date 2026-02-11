@@ -1388,6 +1388,10 @@ toast-container {
   box-shadow: 3px 3px 0 var(--brown);
 }
 
+.toast-info {
+  border-color: var(--navy);
+  box-shadow: 3px 3px 0 var(--navy);
+}
 .toast-dismiss {
   flex-shrink: 0;
   background: none;
