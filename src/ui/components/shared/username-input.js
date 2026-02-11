@@ -8,8 +8,8 @@ class UsernameInput extends HTMLElement {
       <div class="form-group">
         <label for="username">Your Name</label>
         <input type="text" id="username" placeholder="Enter your name"
-               maxlength="20" autocomplete="off" value="${saved}">
-        <p class="username-hint" hidden>Please enter your name</p>
+               maxlength="20" autocomplete="off" value="${saved}" aria-describedby="username-hint">
+        <p id="username-hint" class="username-hint" role="alert" aria-live="polite" hidden>Please enter your name</p>
       </div>
     `;
     this._input = this.querySelector("input");
