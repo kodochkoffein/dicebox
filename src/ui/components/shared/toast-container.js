@@ -19,10 +19,14 @@ class ToastContainer extends HTMLElement {
     const toast = document.createElement("div");
     toast.className = `toast toast-${level}`;
     toast.innerHTML = `
-      <span class="toast-message">${message}</span>
+      <span class="toast-message"></span>
       <button class="toast-dismiss" aria-label="Dismiss">&times;</button>
     `;
 
+    const messageEl = toast.querySelector(".toast-message");
+    if (messageEl) {
+      messageEl.textContent = message;
+    }
     toast.querySelector(".toast-dismiss").addEventListener("click", () => {
       this._remove(toast);
     });
