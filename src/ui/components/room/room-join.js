@@ -12,7 +12,7 @@ class RoomJoin extends HTMLElement {
       <div class="join-buttons">
         <button class="btn-join" id="submit-btn">Enter Room</button>
       </div>
-      <p class="inline-error" hidden></p>
+      <p class="inline-error" role="alert" aria-live="polite" hidden></p>
     `;
 
     this.querySelector("#submit-btn").addEventListener("click", () =>
